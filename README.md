@@ -48,7 +48,7 @@ references/内置已核实的官方规则库，覆盖：
 
 · 美国加州：CAITA（SB 942经AB 853修正合并文本，已于2026-08-02生效）。
 
-并在此基础上设90天周期复核机制与高波动法规监测清单（如加州SB 1000修正案），法规突发生效或修订时即提示重核，避免知识过期导致的误判。references/sources/另存档官方原件（欧盟行为准则、第50条指南（Commission Guidelines on Art. 50 transparency obligations，C(2026) 5054）、Digital Omnibus条例等PDF及加州签署版文本）供直接核对。
+并在此基础上设90天周期复核机制与高波动法规监测清单（如加州SB 1000修正案），法规突发生效或修订时即提示重核，避免知识过期导致的误判。references/sources/另存档官方原件（欧盟行为准则、第50条指南（Commission Guidelines on Art. 50 transparency obligations，C(2026) 5054）、Digital Omnibus条例等PDF及加州签署版文本）供直接核对。如需了解 SB 1000 草案（2026年6月9日修订版）内容与重点解析，可参考《加州AI透明度法案的演进：SB 942→AB 853→SB 1000》（2026年7月15日，微信公众号"互联网合规洞察"）：https://mp.weixin.qq.com/s/3AeahOuV0lzpNPrQB1FmGg（该文为解读性参考，非官方文本，具体条款以生效文本为准）。
 
 ### （三）以边缘案例反复测试，检验Skill对疑难情形的理解能力
 
