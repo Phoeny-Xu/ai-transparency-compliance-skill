@@ -8,6 +8,8 @@
 
 欢迎您使用并提出宝贵建议，以便作者优化skill。
 
+诚邀您收藏，以收到版本更新提示。
+
 ## 二、Skill 的使用方法
 
 本Skill按用户类型分两种模式运行。
@@ -81,3 +83,4 @@ references/glossary.md是译法唯一依据，中文正文转述一律以术语�
 作者：Phoeny Xu
 微信公众号：互联网合规洞察
 联系作者：qzxxphoeny@163.com
+GitHub地址：https://github.com/Phoeny-Xu/ai-transparency-compliance-skill
