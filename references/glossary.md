@@ -19,7 +19,7 @@
 | transparency obligation | 透明度义务 | 〔通行〕Art. 50 标题 |
 | disclosure | 披露 | 〔通行〕向用户传达内容来源/AI属性的行为；含 latent disclosure（隐式披露）、manifest disclosure（显式披露）、user disclosure（用户披露） |
 | latent disclosure | 隐式披露 | 〔通行〕对应 manifest disclosure（显式披露）。法定术语 disclosure 本义为"披露"，统一用"隐式披露/显式披露"；"标记"(marking) 为独立概念，单列于本节（对应 Art. 50(2) 机器可读标记），不可混淆 |
-| manifest disclosure | 显式披露 | 〔通行〕与 latent disclosure 相对；AB 853 已删除"提供显式披露选项"义务 |
+| manifest disclosure | 显式披露 | 〔通行〕与 latent disclosure 相对；加州侧"提供显式披露选项"义务已由 SB 1000 删除（非 AB 853） |
 | machine-readable marking / format | 机器可读标记 / 机器可读格式 | 〔通行〕Art. 50(2)；双语解析"实施机器可读的标记技术""确保标记不可移除" |
 | marking | 标记 | 〔通行〕双语解析高频"标记"（机器可读标记/可感知标记/不可移除的标记） |
 | labelling / labeling | 标注 | 〔通行〕双语解析"标注深度伪造和……文本的义务"（Section 2: Labelling） |
@@ -52,7 +52,7 @@
 | accuracy | 准确性 | 〔通行〕Art. 15 |
 | cybersecurity | 网络安全 | 〔通行〕Art. 15 |
 
-## 二、加州（B&P Code §§22757–22757.6，SB 942 经 AB 853 修正；SB 1000 草案待定）
+## 二、加州（B&P Code §§22757–22757.6，SB 942 经 AB 853 修正；SB 1000 正式通过版 Enrolled）
 
 | 英文原文 | 建议中文 | 性质/依据 |
 | --- | --- | --- |
@@ -61,14 +61,16 @@
 | GenAI hosting platform | 生成式人工智能系统托管平台 | 〔通行〕§22757.1(g)；演进文章作"托管生成式人工智能系统的平台" |
 | generative AI system | 生成式人工智能系统 | 〔法定术语〕§22757.1 |
 | synthetic content | 合成内容 | 〔通行〕§22757.1(f) |
-| latent disclosure | 隐式披露 | 〔通行〕§22757.3(b)；演进文章译作"隐式标记"，侧重嵌入标记机制，本报告统一用"隐式披露" |
-| manifest disclosure | 显式披露 | 〔通行〕与 latent disclosure 相对；演进文章译作"显式标记"；AB 853 已删除"提供显式披露选项"义务 |
-| provenance data | 来源数据 | 〔通行〕§22757.1(j)；演进文章 x11 译"来源数据"（非"溯源数据"）；中国 GB 45438 的"溯源数据"为另一法定术语 |
-| personal provenance data | 个人来源数据 | 〔法定术语〕§22757.1 定义，演进文章专条译"个人来源数据" |
+| latent disclosure | 隐式披露 | 〔通行〕§22757.3(a)（SB 1000 重构，原 §22757.3(b)）；演进文章译作"隐式标记"，侧重嵌入标记机制，本报告统一用"隐式披露" |
+| manifest disclosure | 显式披露 | 〔通行〕与 latent disclosure 相对；演进文章译作"显式标记"；SB 1000 已完全删除"提供显式披露选项"义务（非 AB 853） |
+| provenance data | 来源数据 | 〔通行〕§22757.1(n)（SB 1000 改写定义：关于数字内容来源与修改历史、格式符合或可互操作于标准制定组织广泛采纳规范的信息）；演进文章 x11 译"来源数据"（非"溯源数据"）；中国 GB 45438 的"溯源数据"为另一法定术语 |
+| personal provenance data | 个人来源数据 | 〔法定术语〕§22757.1 原定义（SB 1000 已删除该术语，义务客体改为 personal information）；演进文章专条译"个人来源数据" |
 | watermark | 水印 | 〔通行〕§22757.3(b) |
 | digital signature | 数字签名 | 〔通行〕§22757.1 定义 |
 | metadata | 元数据 | 〔通行〕§22757.1(o) |
-| AI detection tool / detection interface | AI检测工具 / 检测接口 | 〔通行〕§22757.3(a) |
+| disclosure verification tool | 披露验证工具 | 〔通行〕§22757.2；SB 1000 由"AI detection tool / AI检测工具"改名 |
+| assistive technology | 辅助技术 | 〔通行〕§22757.1(b)，SB 1000 新增定义；指商用取得/修改/定制的、用于增进/维持/改善身心障碍者功能能力的器物/设备/产品系统，及直接协助身心障碍者选择/取得/使用该器物等的服务 |
+| minor modification | 轻微修改 | 〔通行〕§22757.1(l)，SB 1000 新增定义；指亮度/对比度/色彩改变、锐化、饱和度调整、文件缩放、比例缩放、裁剪、文件格式转换、音频降噪去背景噪音等 |
 | capture device | 采集设备 | 〔通行〕§22757.1(b)；演进文章译"采集设备"（非"摄录设备"） |
 | capture device manufacturer | 采集设备制造商 | 〔通行〕§22757.3.3；演进文章译"采集设备制造商" |
 | clear and conspicuous | 明确且显著 | 〔通行〕§22757.3 |
