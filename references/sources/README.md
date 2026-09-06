@@ -32,5 +32,6 @@
 |------|----------|------|----------|
 | CA-SB942-chaptered.md | SB 942 (2024, Ch. 291) California AI Transparency Act签署版全文 | leginfo billTextClient | 2026-08-08 |
 | CA-AB853-chaptered.md | AB 853 (2025, Ch. 674)签署版全文（修正案，非清洁版） | leginfo billTextClient | 2026-08-08 |
+| CA-SB1000-enrolled.md | SB 1000（2025-2026 会期）正式通过版（Enrolled）逐字全文（尚未 chaptered，签署后取得章号） | leginfo billTextClient | 2026-09-05 |
 
 > 加州合并阅读规则：AB 853修订/新增条款从其为准；SB 942未被触及条款继续有效。合并结论见ca-rules.md。
