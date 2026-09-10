@@ -80,6 +80,6 @@ references/glossary.md是译法唯一依据，中文正文转述一律以术语�
 
 作者：Phoeny Xu
 
-微信公众号：互联网合规洞察
+微信公众号：AI合规Lab
 
 联系作者：qxxxphoeny@163.com
