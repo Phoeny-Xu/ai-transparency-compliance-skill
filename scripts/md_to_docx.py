@@ -1,454 +1,830 @@
-# -*- coding: utf-8 -*-
-"""通用 Markdown -> Word(docx) 转换器，针对本报告类文档优化。
-增强版：支持真实 Word 脚注（word/footnotes.xml）、表格表头灰底、超链接、
-批注章节转 Word 批注气泡。脚注语法：正文 [^label]，定义行 [^label]: 文本。
+#!/usr/bin/env python3
+"""Convert the reports produced by this Skill from Markdown to DOCX.
+
+The converter deliberately implements the small Markdown subset used by the
+templates instead of depending on a renderer with an unstable extension set.
+It supports headings, lists, block quotes, fenced and inline code, links,
+tables, and real Word footnotes. A final internal annotation section can be
+converted to Word comments by the bundled companion script.
 """
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
 import re
-import sys
-import os
 import shutil
+import sys
 import zipfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable
+from xml.sax.saxutils import escape as xml_escape
+
 from docx import Document
-from docx.shared import Pt, RGBColor, Inches
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
-from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Inches, Pt, RGBColor
+from lxml import etree
 
-# ---------- 中文字体设置 ----------
+
 CN_FONT = "宋体"
-CN_FONT_BOLD = "黑体"
-HEADING_FONT = "宋体"
+HEADING_FONT = "黑体"
+CODE_FONT = "Courier New"
+HYPERLINK_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+FOOTNOTE_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes"
+FOOTNOTE_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"
+FOOTNOTE_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
-# 脚注全局映射（convert 填充，add_footnote_ref / _inject_footnotes 读取）
-FOOTNOTE_DEFS = {}
-FOOTNOTE_LABEL_TO_ID = {}
+FOOTNOTE_DEF_RE = re.compile(r"^[ \t]*\[\^([^\]\s]+)\]:[ \t]*(.*)$")
+HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
+FENCE_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})(.*)$")
+UNORDERED_LIST_RE = re.compile(r"^[-*+][ \t]+(.*)$")
+ORDERED_LIST_RE = re.compile(r"^\d+[.)][ \t]+(.*)$")
+FONT_TAG_RE = re.compile(
+    r'<font\s+color\s*=\s*["\']([^"\']+)["\']\s*>(.*?)</font>',
+    re.IGNORECASE | re.DOTALL,
+)
+SPAN_TAG_RE = re.compile(
+    r'<span\s+style\s*=\s*["\']([^"\']*)["\']\s*>(.*?)</span>',
+    re.IGNORECASE | re.DOTALL,
+)
+COLOR_RE = re.compile(r"^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+RAW_URL_RE = re.compile(r"(?:https?://|mailto:)", re.IGNORECASE)
 
 
-def set_cn_font(run, font_name=CN_FONT, size=None, bold=False):
+@dataclass(frozen=True)
+class InlineToken:
+    kind: str
+    text: str
+    target: str | None = None
+    color: str | None = None
+    bold: bool = False
+
+
+@dataclass
+class ConversionContext:
+    footnote_definitions: dict[str, str]
+    footnote_ids: dict[str, int]
+
+
+def _set_run_font(
+    run,
+    *,
+    font_name: str = CN_FONT,
+    size: float | None = None,
+    bold: bool | None = None,
+    color: str | None = None,
+) -> None:
+    """Set both Western and East Asian fonts on a python-docx run."""
     run.font.name = font_name
-    rpr = run._element.get_or_add_rPr()
-    rfonts = rpr.find(qn('w:rFonts'))
-    if rfonts is None:
-        rfonts = OxmlElement('w:rFonts')
-        rpr.append(rfonts)
-    rfonts.set(qn('w:eastAsia'), font_name)
-    rfonts.set(qn('w:ascii'), font_name)
-    rfonts.set(qn('w:hAnsi'), font_name)
-    if size:
+    if size is not None:
         run.font.size = Pt(size)
-    run.font.bold = bold
+    if bold is not None:
+        run.font.bold = bold
+    rpr = run._element.get_or_add_rPr()
+    rfonts = rpr.find(qn("w:rFonts"))
+    if rfonts is None:
+        rfonts = OxmlElement("w:rFonts")
+        rpr.append(rfonts)
+    rfonts.set(qn("w:eastAsia"), font_name)
+    rfonts.set(qn("w:ascii"), font_name)
+    rfonts.set(qn("w:hAnsi"), font_name)
+    if color and COLOR_RE.fullmatch(color.strip()):
+        normalized = color.strip().lstrip("#")
+        if len(normalized) == 3:
+            normalized = "".join(ch * 2 for ch in normalized)
+        run.font.color.rgb = RGBColor.from_string(normalized.upper())
 
 
-def add_hyperlink(paragraph, url, text):
-    part = paragraph.part
-    r_id = part.relate_to(url, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", is_external=True)
-    hyperlink = OxmlElement('w:hyperlink')
-    hyperlink.set(qn('r:id'), r_id)
-    new_run = OxmlElement('w:r')
-    rPr = OxmlElement('w:rPr')
-    color = OxmlElement('w:color')
-    color.set(qn('w:val'), '000000')
-    rPr.append(color)
-    u = OxmlElement('w:u')
-    u.set(qn('w:val'), 'single')
-    rPr.append(u)
-    rfonts = OxmlElement('w:rFonts')
-    rfonts.set(qn('w:eastAsia'), CN_FONT)
-    rfonts.set(qn('w:ascii'), CN_FONT)
-    rfonts.set(qn('w:hAnsi'), CN_FONT)
-    rPr.append(rfonts)
-    t = OxmlElement('w:t')
-    t.text = text
-    new_run.append(rPr)
-    new_run.append(t)
-    hyperlink.append(new_run)
-    paragraph._p.append(hyperlink)
-    return hyperlink
-
-
-# ---------- 内联解析（**加粗** / [文本](url) / 裸url / <font color> / <span style> / [^脚注]） ----------
-def hex_to_rgb(hex_str):
-    hex_str = hex_str.lstrip('#')
-    if len(hex_str) == 3:
-        hex_str = ''.join(c * 2 for c in hex_str)
-    return RGBColor(int(hex_str[0:2], 16), int(hex_str[2:4], 16), int(hex_str[4:6], 16))
-
-
-def add_footnote_ref(paragraph, label):
-    fid = FOOTNOTE_LABEL_TO_ID.get(label)
-    if fid is None:
-        run = paragraph.add_run('[^%s]' % label)
-        set_cn_font(run, CN_FONT)
-        return
-    run = paragraph.add_run()
-    rPr = run._element.get_or_add_rPr()
-    rStyle = OxmlElement('w:rStyle')
-    rStyle.set(qn('w:val'), 'FootnoteReference')
-    rPr.append(rStyle)
-    fr = OxmlElement('w:footnoteReference')
-    fr.set(qn('w:id'), str(fid))
-    run._element.append(fr)
-
-
-def _add_plain_segment(paragraph, text):
-    """处理普通文本段中的 **bold** / 裸url / [^脚注]"""
-    parts = re.split(r'(\*\*[^*]+\*\*|https?://\S+|\[\^([^\]]+)\])', text)
-    for part in parts:
-        if not part:
-            continue
-        fm = re.match(r'\[\^([^\]]+)\]$', part)
-        if fm:
-            add_footnote_ref(paragraph, fm.group(1))
-            continue
-        if part.startswith('**') and part.endswith('**'):
-            run = paragraph.add_run(part[2:-2])
-            set_cn_font(run, CN_FONT, bold=True)
-        elif re.match(r'^https?://\S+$', part):
-            add_hyperlink(paragraph, part, part)
-        else:
+def _append_text(paragraph, text: str, *, bold: bool = False, code: bool = False, color: str | None = None) -> None:
+    """Append text while retaining explicit line breaks in Markdown content."""
+    parts = text.split("\n")
+    for index, part in enumerate(parts):
+        if part:
             run = paragraph.add_run(part)
-            set_cn_font(run, CN_FONT)
+            _set_run_font(
+                run,
+                font_name=CODE_FONT if code else CN_FONT,
+                size=9.5 if code else None,
+                bold=bold,
+                color=color,
+            )
+        if index < len(parts) - 1:
+            break_run = paragraph.add_run()
+            _set_run_font(break_run, font_name=CODE_FONT if code else CN_FONT, size=9.5 if code else None)
+            break_run.add_break()
 
 
-def parse_inline(paragraph, text):
-    """内联解析：支持 [text](url)、**bold**、裸url、<font color>、<span style> 与 [^脚注]"""
-    pattern = re.compile(
-        r'<font\s+color="(#?[0-9A-Fa-f]+)"\s*>(.*?)</font>'
-        r'|<span\s+style="([^"]*)"\s*>(.*?)</span>'
-        r'|\[([^\]]+)\]\((https?://[^)]+)\)'
-        r'|\*\*(.+?)\*\*'
-        r'|\[\^([^\]]+)\]'
-        r'|(https?://\S+)',
-        re.DOTALL,
-    )
-    last = 0
-    n = len(text)
-    for m in pattern.finditer(text):
-        if m.start() > last:
-            _add_plain_segment(paragraph, text[last:m.start()])
-        last = m.end()
-        if m.group(1) is not None:  # <font color>
-            run = paragraph.add_run(m.group(2))
-            run.font.color.rgb = hex_to_rgb(m.group(1))
-            set_cn_font(run, CN_FONT)
-        elif m.group(3) is not None:  # <span style>
-            style = m.group(3)
-            run = paragraph.add_run(m.group(4))
-            cm = re.search(r'color:\s*(red|#?[0-9A-fa-f]+)', style)
-            if cm:
-                val = cm.group(1)
-                run.font.color.rgb = RGBColor(0xFF, 0x00, 0x00) if val == 'red' else hex_to_rgb(val)
-            is_bold = 'bold' in style
-            set_cn_font(run, CN_FONT, bold=is_bold)
-        elif m.group(5) is not None:  # [text](url)
-            add_hyperlink(paragraph, m.group(6), m.group(5))
-        elif m.group(7) is not None:  # **bold**
-            run = paragraph.add_run(m.group(7))
-            set_cn_font(run, CN_FONT, bold=True)
-        elif m.group(8) is not None:  # [^footnote]
-            add_footnote_ref(paragraph, m.group(8))
-        elif m.group(9) is not None:  # 裸url
-            add_hyperlink(paragraph, m.group(9), m.group(9))
-    if last < n:
-        _add_plain_segment(paragraph, text[last:])
+def _add_hyperlink(paragraph, url: str, text: str) -> None:
+    """Add an external hyperlink, including relative and mailto targets."""
+    relationship_id = paragraph.part.relate_to(url, HYPERLINK_REL, is_external=True)
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), relationship_id)
+    run = OxmlElement("w:r")
+    rpr = OxmlElement("w:rPr")
+    color = OxmlElement("w:color")
+    color.set(qn("w:val"), "0563C1")
+    rpr.append(color)
+    underline = OxmlElement("w:u")
+    underline.set(qn("w:val"), "single")
+    rpr.append(underline)
+    rfonts = OxmlElement("w:rFonts")
+    rfonts.set(qn("w:eastAsia"), CN_FONT)
+    rfonts.set(qn("w:ascii"), CN_FONT)
+    rfonts.set(qn("w:hAnsi"), CN_FONT)
+    rpr.append(rfonts)
+    run.append(rpr)
+    for index, part in enumerate(text.split("\n")):
+        if part:
+            node = OxmlElement("w:t")
+            if part[:1].isspace() or part[-1:].isspace():
+                node.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+            node.text = part
+            run.append(node)
+        if index < len(text.split("\n")) - 1:
+            run.append(OxmlElement("w:br"))
+    hyperlink.append(run)
+    paragraph._p.append(hyperlink)
 
 
-def is_table_separator(line):
-    s = line.strip()
-    if not s.startswith('|'):
-        return False
-    cleaned = s.replace('|', '').replace(' ', '')
-    if cleaned == '':
-        return False
-    return set(cleaned) <= set('-:')
+def _parse_markdown_link(text: str, start: int) -> tuple[str, str, int] | None:
+    """Return label, target, and the index after a balanced Markdown link."""
+    closing_label = text.find("](", start + 1)
+    if closing_label < 0:
+        return None
+    label = text[start + 1 : closing_label]
+    cursor = closing_label + 2
+    depth = 0
+    while cursor < len(text):
+        char = text[cursor]
+        if char == "\\" and cursor + 1 < len(text):
+            cursor += 2
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            if depth == 0:
+                target = text[closing_label + 2 : cursor].strip()
+                if target:
+                    return label, target, cursor + 1
+                return None
+            depth -= 1
+        cursor += 1
+    return None
 
 
-def parse_table_row(line):
-    cells = [c.strip() for c in line.strip().strip('|').split('|')]
+def _consume_bare_url(text: str, start: int) -> tuple[str, int] | None:
+    match = RAW_URL_RE.match(text, start)
+    if not match:
+        return None
+    cursor = start
+    while cursor < len(text) and not text[cursor].isspace() and text[cursor] not in '<>"\'':
+        cursor += 1
+    candidate = text[start:cursor]
+    while candidate and candidate[-1] in ".,;:!?。，；：！？":
+        candidate = candidate[:-1]
+        cursor -= 1
+    pairs = ((")", "("), ("]", "["), ("}", "{"))
+    changed = True
+    while candidate and changed:
+        changed = False
+        for closing, opening in pairs:
+            if candidate.endswith(closing) and candidate.count(closing) > candidate.count(opening):
+                candidate = candidate[:-1]
+                cursor -= 1
+                changed = True
+    return (candidate, cursor) if candidate else None
+
+
+def _tokenize_inline(text: str, *, include_footnotes: bool = True) -> list[InlineToken]:
+    """Parse the intentionally small inline Markdown dialect used by reports."""
+    tokens: list[InlineToken] = []
+    plain: list[str] = []
+
+    def flush_plain() -> None:
+        if plain:
+            tokens.append(InlineToken("text", "".join(plain)))
+            plain.clear()
+
+    index = 0
+    while index < len(text):
+        if text[index] == "\\" and index + 1 < len(text) and text[index + 1] in "\\|`*[]()":
+            plain.append(text[index + 1])
+            index += 2
+            continue
+
+        if text.startswith("**", index):
+            end = text.find("**", index + 2)
+            if end >= 0:
+                flush_plain()
+                tokens.append(InlineToken("bold", text[index + 2 : end], bold=True))
+                index = end + 2
+                continue
+
+        if text[index] == "`":
+            tick_count = 1
+            while index + tick_count < len(text) and text[index + tick_count] == "`":
+                tick_count += 1
+            marker = "`" * tick_count
+            end = text.find(marker, index + tick_count)
+            if end >= 0:
+                flush_plain()
+                tokens.append(InlineToken("code", text[index + tick_count : end]))
+                index = end + tick_count
+                continue
+
+        if include_footnotes and text.startswith("[^", index):
+            end = text.find("]", index + 2)
+            if end >= 0:
+                label = text[index + 2 : end]
+                if label and "[" not in label:
+                    flush_plain()
+                    tokens.append(InlineToken("footnote", label))
+                    index = end + 1
+                    continue
+
+        if text[index] == "[":
+            link = _parse_markdown_link(text, index)
+            if link is not None:
+                label, target, end = link
+                flush_plain()
+                tokens.append(InlineToken("link", label, target=target))
+                index = end
+                continue
+
+        font_match = FONT_TAG_RE.match(text, index)
+        if font_match is not None:
+            flush_plain()
+            color = font_match.group(1) if COLOR_RE.fullmatch(font_match.group(1).strip()) else None
+            tokens.append(InlineToken("styled", font_match.group(2), color=color))
+            index = font_match.end()
+            continue
+
+        span_match = SPAN_TAG_RE.match(text, index)
+        if span_match is not None:
+            flush_plain()
+            style = span_match.group(1)
+            color_match = re.search(r"(?:^|;)\s*color\s*:\s*([^;\s]+)", style, re.IGNORECASE)
+            color = color_match.group(1) if color_match and COLOR_RE.fullmatch(color_match.group(1)) else None
+            bold = bool(re.search(r"font-weight\s*:\s*(?:bold|[6-9]00)", style, re.IGNORECASE))
+            tokens.append(InlineToken("styled", span_match.group(2), color=color, bold=bold))
+            index = span_match.end()
+            continue
+
+        url = _consume_bare_url(text, index)
+        if url is not None:
+            target, end = url
+            flush_plain()
+            tokens.append(InlineToken("link", target, target=target))
+            index = end
+            continue
+
+        plain.append(text[index])
+        index += 1
+
+    flush_plain()
+    return tokens
+
+
+def _footnote_labels_in_line(line: str) -> Iterable[str]:
+    """Find references outside inline-code spans so code examples remain literal."""
+    index = 0
+    marker: str | None = None
+    while index < len(line):
+        if line[index] == "`":
+            count = 1
+            while index + count < len(line) and line[index + count] == "`":
+                count += 1
+            ticks = "`" * count
+            if marker is None:
+                marker = ticks
+            elif marker == ticks:
+                marker = None
+            index += count
+            continue
+        if marker is None and line.startswith("[^", index):
+            end = line.find("]", index + 2)
+            if end >= 0:
+                label = line[index + 2 : end]
+                if label and "[" not in label:
+                    yield label
+                    index = end + 1
+                    continue
+        index += 1
+
+
+def _collect_footnotes(lines: list[str]) -> tuple[dict[str, str], set[int], dict[str, int]]:
+    """Collect definitions, continuation lines, and referenced labels before rendering."""
+    definitions: dict[str, str] = {}
+    skipped_lines: set[int] = set()
+    index = 0
+    active_fence: str | None = None
+    while index < len(lines):
+        fence = FENCE_RE.match(lines[index])
+        if fence:
+            marker = fence.group(1)
+            if active_fence is None:
+                active_fence = marker
+            elif marker[0] == active_fence[0] and len(marker) >= len(active_fence):
+                active_fence = None
+            index += 1
+            continue
+        if active_fence is not None:
+            index += 1
+            continue
+
+        match = FOOTNOTE_DEF_RE.match(lines[index])
+        if match is None:
+            index += 1
+            continue
+        label, first_line = match.groups()
+        if label in definitions:
+            raise ValueError(f"Duplicate footnote definition: {label}")
+        body = [first_line]
+        skipped_lines.add(index)
+        next_index = index + 1
+        while next_index < len(lines):
+            continuation = lines[next_index]
+            if continuation.startswith("\t"):
+                body.append(continuation[1:])
+                skipped_lines.add(next_index)
+            elif continuation.startswith("    "):
+                body.append(continuation[4:])
+                skipped_lines.add(next_index)
+            elif continuation.strip() == "" and next_index + 1 < len(lines) and (
+                lines[next_index + 1].startswith("\t") or lines[next_index + 1].startswith("    ")
+            ):
+                body.append("")
+                skipped_lines.add(next_index)
+            else:
+                break
+            next_index += 1
+        definitions[label] = "\n".join(body).rstrip()
+        index = next_index
+
+    referenced: list[str] = []
+    active_fence = None
+    for line_index, line in enumerate(lines):
+        if line_index in skipped_lines:
+            continue
+        fence = FENCE_RE.match(line)
+        if fence:
+            marker = fence.group(1)
+            if active_fence is None:
+                active_fence = marker
+            elif marker[0] == active_fence[0] and len(marker) >= len(active_fence):
+                active_fence = None
+            continue
+        if active_fence is None:
+            referenced.extend(_footnote_labels_in_line(line))
+
+    undefined = sorted(set(referenced) - set(definitions))
+    if undefined:
+        raise ValueError("Undefined footnote reference: " + ", ".join(undefined))
+
+    ids: dict[str, int] = {}
+    for label in referenced:
+        if label not in ids:
+            ids[label] = len(ids) + 1
+    return definitions, skipped_lines, ids
+
+
+def _add_footnote_reference(paragraph, label: str, context: ConversionContext) -> None:
+    footnote_id = context.footnote_ids.get(label)
+    if footnote_id is None:
+        raise ValueError(f"Undefined footnote reference: {label}")
+    run = paragraph.add_run()
+    rpr = run._element.get_or_add_rPr()
+    style = OxmlElement("w:rStyle")
+    style.set(qn("w:val"), "FootnoteReference")
+    rpr.append(style)
+    reference = OxmlElement("w:footnoteReference")
+    reference.set(qn("w:id"), str(footnote_id))
+    run._element.append(reference)
+
+
+def _render_inline(paragraph, text: str, context: ConversionContext) -> None:
+    for token in _tokenize_inline(text):
+        if token.kind == "text":
+            _append_text(paragraph, token.text)
+        elif token.kind == "bold":
+            _append_text(paragraph, token.text, bold=True)
+        elif token.kind == "code":
+            _append_text(paragraph, token.text, code=True)
+        elif token.kind == "link":
+            _add_hyperlink(paragraph, token.target or token.text, token.text)
+        elif token.kind == "footnote":
+            _add_footnote_reference(paragraph, token.text, context)
+        elif token.kind == "styled":
+            _append_text(paragraph, token.text, bold=token.bold, color=token.color)
+
+
+def _top_level_pipe_positions(text: str) -> list[int]:
+    positions: list[int] = []
+    index = 0
+    active_ticks: str | None = None
+    while index < len(text):
+        if text[index] == "\\" and index + 1 < len(text):
+            index += 2
+            continue
+        if text[index] == "`":
+            count = 1
+            while index + count < len(text) and text[index + count] == "`":
+                count += 1
+            marker = "`" * count
+            if active_ticks is None:
+                active_ticks = marker
+            elif active_ticks == marker:
+                active_ticks = None
+            index += count
+            continue
+        if text[index] == "|" and active_ticks is None:
+            positions.append(index)
+        index += 1
+    return positions
+
+
+def _split_table_cells(line: str) -> list[str]:
+    text = line.strip()
+    positions = _top_level_pipe_positions(text)
+    if not positions:
+        return [text]
+    cells: list[str] = []
+    current: list[str] = []
+    index = 0
+    active_ticks: str | None = None
+    while index < len(text):
+        char = text[index]
+        if char == "\\" and index + 1 < len(text):
+            if text[index + 1] == "|":
+                current.append("|")
+            else:
+                current.extend((char, text[index + 1]))
+            index += 2
+            continue
+        if char == "`":
+            count = 1
+            while index + count < len(text) and text[index + count] == "`":
+                count += 1
+            marker = "`" * count
+            if active_ticks is None:
+                active_ticks = marker
+            elif active_ticks == marker:
+                active_ticks = None
+            current.append(marker)
+            index += count
+            continue
+        if char == "|" and active_ticks is None:
+            cells.append("".join(current).strip())
+            current.clear()
+            index += 1
+            continue
+        current.append(char)
+        index += 1
+    cells.append("".join(current).strip())
+    if positions[0] == 0:
+        cells = cells[1:]
+    if positions[-1] == len(text) - 1:
+        cells = cells[:-1]
     return cells
 
 
-def _is_serial(text):
-    """判断单元格文本是否像序号（纯数字 / CP-X / 带圈数字 / 数字+标点）"""
-    t = text.strip()
-    return bool(re.match(r'^(\d+|CP-\d+|[①②③④⑤⑥⑦⑧⑨⑩]|\d+[\.、])$', t))
+def _is_table_separator(line: str) -> bool:
+    cells = _split_table_cells(line)
+    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in cells)
 
 
-def style_table(table):
-    table.style = 'Table Grid'
+def _is_table_row(line: str) -> bool:
+    return bool(_top_level_pipe_positions(line.strip()))
+
+
+def _style_table(table) -> None:
+    table.style = "Table Grid"
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    # 表头：加粗 + 水平居中 + 垂直居中 + 浅灰底
-    hdr = table.rows[0]
-    for cell in hdr.cells:
-        cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-        for p in cell.paragraphs:
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            for run in p.runs:
-                run.font.bold = True
-                set_cn_font(run, CN_FONT, size=9, bold=True)
-        # 浅灰底
-        tcPr = cell._tc.get_or_add_tcPr()
-        shd = OxmlElement('w:shd')
-        shd.set(qn('w:val'), 'clear')
-        shd.set(qn('w:color'), 'auto')
-        shd.set(qn('w:fill'), 'D9E2F3')
-        tcPr.append(shd)
-    # 数据单元格：垂直居中；首列为序号时水平居中，其余水平左对齐
-    for r_i, row in enumerate(table.rows[1:], start=1):
-        for c_i, cell in enumerate(row.cells):
+    for row_index, row in enumerate(table.rows):
+        for column_index, cell in enumerate(row.cells):
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-            is_serial = (c_i == 0 and _is_serial(cell.text))
-            for p in cell.paragraphs:
-                p.alignment = WD_ALIGN_PARAGRAPH.CENTER if is_serial else WD_ALIGN_PARAGRAPH.LEFT
-                for run in p.runs:
-                    set_cn_font(run, CN_FONT, size=9, bold=run.font.bold)
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER if row_index == 0 else WD_ALIGN_PARAGRAPH.LEFT
+                for run in paragraph.runs:
+                    _set_run_font(run, size=9, bold=True if row_index == 0 else run.font.bold)
+            if row_index == 0:
+                cell_properties = cell._tc.get_or_add_tcPr()
+                shading = OxmlElement("w:shd")
+                shading.set(qn("w:val"), "clear")
+                shading.set(qn("w:color"), "auto")
+                shading.set(qn("w:fill"), "D9E2F3")
+                cell_properties.append(shading)
+            elif column_index == 0 and re.fullmatch(r"(?:\d+|[①②③④⑤⑥⑦⑧⑨⑩])", cell.text.strip()):
+                for paragraph in cell.paragraphs:
+                    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 
-def _inject_footnotes(docx_path):
-    """将 FOOTNOTE_DEFS / FOOTNOTE_LABEL_TO_ID 注入为真实 Word 脚注。"""
-    global FOOTNOTE_DEFS, FOOTNOTE_LABEL_TO_ID
-    if not FOOTNOTE_DEFS:
-        return 0
-    ns_w = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-    ns_r = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
-    parts = []
-    parts.append('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>')
-    parts.append('<w:footnotes xmlns:w="%s" xmlns:r="%s">' % (ns_w, ns_r))
-    parts.append('<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>')
-    parts.append('<w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>')
-    for label, fid in sorted(FOOTNOTE_LABEL_TO_ID.items(), key=lambda kv: kv[1]):
-        text = FOOTNOTE_DEFS.get(label, '')
-        escaped = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-        parts.append('<w:footnote w:type="normal" w:id="%d">' % fid)
-        parts.append('<w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>')
-        parts.append('<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r>')
-        parts.append('<w:r><w:rPr><w:rFonts w:eastAsia="%s" w:ascii="%s" w:hAnsi="%s"/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve"> %s</w:t></w:r>' % (CN_FONT, CN_FONT, CN_FONT, escaped))
-        parts.append('</w:p></w:footnote>')
-    parts.append('</w:footnotes>')
-    footnotes_xml = ''.join(parts).encode('utf-8')
-
-    tmp = docx_path + '.tmp'
-    with zipfile.ZipFile(docx_path, 'r') as zin:
-        names = zin.namelist()
-        data = {n: zin.read(n) for n in names}
-    data['word/footnotes.xml'] = footnotes_xml
-    # [Content_Types].xml
-    ct = data['[Content_Types].xml'].decode('utf-8')
-    if 'footnotes.xml' not in ct:
-        ct = ct.replace('</Types>', '<Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/></Types>')
-        data['[Content_Types].xml'] = ct.encode('utf-8')
-    # document.xml.rels
-    rels_name = 'word/_rels/document.xml.rels'
-    if rels_name in data:
-        rels = data[rels_name].decode('utf-8')
-        if 'footnotes' not in rels:
-            nums = [int(x) for x in re.findall(r'rId(\d+)', rels)]
-            new_id = 'rId%d' % (max(nums) + 1) if nums else 'rId1'
-            rels = rels.replace('</Relationships>',
-                '<Relationship Id="%s" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/></Relationships>' % new_id)
-            data[rels_name] = rels.encode('utf-8')
-    with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
-        for n, b in data.items():
-            zout.writestr(n, b)
-    shutil.move(tmp, docx_path)
-    return len(FOOTNOTE_LABEL_TO_ID)
+def _render_table(doc: Document, header: list[str], rows: list[list[str]], context: ConversionContext) -> None:
+    width = max([len(header), *(len(row) for row in rows)] or [1])
+    padded_header = header + [""] * (width - len(header))
+    padded_rows = [row + [""] * (width - len(row)) for row in rows]
+    table = doc.add_table(rows=1 + len(padded_rows), cols=width)
+    for column_index, value in enumerate(padded_header):
+        _render_inline(table.rows[0].cells[column_index].paragraphs[0], value, context)
+    for row_index, row in enumerate(padded_rows, start=1):
+        for column_index, value in enumerate(row):
+            _render_inline(table.rows[row_index].cells[column_index].paragraphs[0], value, context)
+    _style_table(table)
 
 
-def convert(md_path, docx_path):
-    global FOOTNOTE_DEFS, FOOTNOTE_LABEL_TO_ID
-    FOOTNOTE_DEFS = {}
-    FOOTNOTE_LABEL_TO_ID = {}
-    with open(md_path, 'r', encoding='utf-8') as f:
-        lines = f.read().split('\n')
+def _add_horizontal_rule(doc: Document) -> None:
+    paragraph = doc.add_paragraph()
+    properties = paragraph._p.get_or_add_pPr()
+    borders = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), "6")
+    bottom.set(qn("w:space"), "1")
+    bottom.set(qn("w:color"), "999999")
+    borders.append(bottom)
+    properties.append(borders)
 
-    # 预扫脚注定义行 [^label]: text，并分配 id（从 1 起）
-    fn_def_re = re.compile(r'^\[\^([^\]]+)\]:\s*(.*)$')
-    for line in lines:
-        m = fn_def_re.match(line.strip())
-        if m:
-            FOOTNOTE_DEFS[m.group(1)] = m.group(2)
-    for idx, label in enumerate(FOOTNOTE_DEFS.keys(), start=1):
-        FOOTNOTE_LABEL_TO_ID[label] = idx
 
-    doc = Document()
-    # 全局默认字体
-    style = doc.styles['Normal']
-    style.font.name = CN_FONT
-    style.font.size = Pt(10.5)
-    rpr = style.element.get_or_add_rPr()
-    rfonts = rpr.find(qn('w:rFonts'))
+def _is_horizontal_rule(text: str) -> bool:
+    compact = text.replace(" ", "")
+    return len(compact) >= 3 and len(set(compact)) == 1 and compact[0] in "-* _".replace(" ", "")
+
+
+def _configure_document(doc: Document) -> None:
+    normal = doc.styles["Normal"]
+    normal.font.name = CN_FONT
+    normal.font.size = Pt(10.5)
+    rpr = normal.element.get_or_add_rPr()
+    rfonts = rpr.find(qn("w:rFonts"))
     if rfonts is None:
-        rfonts = OxmlElement('w:rFonts')
+        rfonts = OxmlElement("w:rFonts")
         rpr.append(rfonts)
-    rfonts.set(qn('w:eastAsia'), CN_FONT)
-    rfonts.set(qn('w:ascii'), CN_FONT)
-    rfonts.set(qn('w:hAnsi'), CN_FONT)
+    for field in ("w:eastAsia", "w:ascii", "w:hAnsi"):
+        rfonts.set(qn(field), CN_FONT)
+    for level, size in enumerate((18, 15, 13, 11.5, 10.5, 10), start=1):
+        style = doc.styles[f"Heading {level}"]
+        style.font.name = HEADING_FONT
+        style.font.size = Pt(size)
 
-    i = 0
-    n = len(lines)
-    while i < n:
-        line = lines[i]
+
+def _render_fenced_code(doc: Document, code_lines: list[str]) -> None:
+    paragraph = doc.add_paragraph(style="No Spacing")
+    paragraph.paragraph_format.left_indent = Inches(0.2)
+    for index, line in enumerate(code_lines):
+        _append_text(paragraph, line, code=True)
+        if index < len(code_lines) - 1:
+            break_run = paragraph.add_run()
+            _set_run_font(break_run, font_name=CODE_FONT, size=9.5)
+            break_run.add_break()
+
+
+def _footnote_run_xml(text: str, *, bold: bool = False, code: bool = False) -> str:
+    rpr_parts = [
+        "<w:rPr>",
+        f'<w:rFonts w:eastAsia="{xml_escape(CODE_FONT if code else CN_FONT)}" '
+        f'w:ascii="{xml_escape(CODE_FONT if code else CN_FONT)}" '
+        f'w:hAnsi="{xml_escape(CODE_FONT if code else CN_FONT)}"/>',
+        '<w:sz w:val="18"/>',
+    ]
+    if bold:
+        rpr_parts.append("<w:b/>")
+    if code:
+        rpr_parts.append('<w:highlight w:val="lightGray"/>')
+    rpr_parts.append("</w:rPr>")
+    text_parts: list[str] = []
+    parts = text.split("\n")
+    for index, part in enumerate(parts):
+        if part:
+            text_parts.append(f'<w:t xml:space="preserve">{xml_escape(part)}</w:t>')
+        if index < len(parts) - 1:
+            text_parts.append("<w:br/>")
+    if not text_parts:
+        text_parts.append("<w:t/>")
+    return "<w:r>" + "".join(rpr_parts + text_parts) + "</w:r>"
+
+
+def _footnote_body_xml(text: str) -> str:
+    runs: list[str] = []
+    for token in _tokenize_inline(text, include_footnotes=False):
+        if token.kind == "bold":
+            runs.append(_footnote_run_xml(token.text, bold=True))
+        elif token.kind == "code":
+            runs.append(_footnote_run_xml(token.text, code=True))
+        elif token.kind == "link":
+            runs.append(_footnote_run_xml(f"{token.text} ({token.target})"))
+        else:
+            runs.append(_footnote_run_xml(token.text, bold=token.bold, code=False))
+    return "".join(runs) or _footnote_run_xml("")
+
+
+def _inject_footnotes(docx_path: Path, context: ConversionContext) -> int:
+    """Add only referenced definitions to the OOXML package."""
+    if not context.footnote_ids:
+        return 0
+
+    parts = [
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+        f'<w:footnotes xmlns:w="{FOOTNOTE_NS}">',
+        '<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>',
+        '<w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>',
+    ]
+    for label, footnote_id in context.footnote_ids.items():
+        body = _footnote_body_xml(context.footnote_definitions[label])
+        parts.extend(
+            (
+                f'<w:footnote w:id="{footnote_id}">',
+                '<w:p><w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr>',
+                '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r>',
+                body,
+                "</w:p></w:footnote>",
+            )
+        )
+    parts.append("</w:footnotes>")
+
+    with zipfile.ZipFile(docx_path, "r") as archive:
+        content = {name: archive.read(name) for name in archive.namelist()}
+    content["word/footnotes.xml"] = "".join(parts).encode("utf-8")
+
+    content_types = etree.fromstring(content["[Content_Types].xml"])
+    content_type_ns = content_types.nsmap.get(None)
+    override_tag = f"{{{content_type_ns}}}Override"
+    has_override = any(node.get("PartName") == "/word/footnotes.xml" for node in content_types)
+    if not has_override:
+        override = etree.Element(override_tag)
+        override.set("PartName", "/word/footnotes.xml")
+        override.set("ContentType", FOOTNOTE_CONTENT_TYPE)
+        content_types.append(override)
+    content["[Content_Types].xml"] = etree.tostring(content_types, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+    rels_name = "word/_rels/document.xml.rels"
+    relationships = etree.fromstring(content[rels_name])
+    relationship_ns = relationships.nsmap.get(None)
+    has_relationship = any(node.get("Type") == FOOTNOTE_REL for node in relationships)
+    if not has_relationship:
+        existing_ids = []
+        for node in relationships:
+            match = re.fullmatch(r"rId(\d+)", node.get("Id", ""))
+            if match:
+                existing_ids.append(int(match.group(1)))
+        relationship = etree.Element(f"{{{relationship_ns}}}Relationship")
+        relationship.set("Id", f"rId{max(existing_ids, default=0) + 1}")
+        relationship.set("Type", FOOTNOTE_REL)
+        relationship.set("Target", "footnotes.xml")
+        relationships.append(relationship)
+    content[rels_name] = etree.tostring(relationships, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+    temporary = docx_path.with_suffix(docx_path.suffix + ".tmp")
+    with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, data in content.items():
+            archive.writestr(name, data)
+    shutil.move(temporary, docx_path)
+    return len(context.footnote_ids)
+
+
+def _post_annotate(docx_path: Path) -> int:
+    """Run the sibling comment converter from the actual script directory."""
+    converter_path = Path(__file__).resolve().with_name("annotations_to_docx_comments.py")
+    if not converter_path.is_file():
+        raise RuntimeError(f"Annotation converter is missing: {converter_path}")
+    spec = importlib.util.spec_from_file_location("annotations_to_docx_comments", converter_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Could not load the annotation converter")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return int(module.convert_docx_annotations(str(docx_path)))
+
+
+def convert(markdown_path: str | Path, docx_path: str | Path, *, convert_annotations: bool = True) -> Path:
+    """Convert one Markdown file and return the resulting DOCX path."""
+    markdown_path = Path(markdown_path)
+    docx_path = Path(docx_path)
+    text = markdown_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    definitions, skipped_lines, footnote_ids = _collect_footnotes(lines)
+    context = ConversionContext(definitions, footnote_ids)
+
+    document = Document()
+    _configure_document(document)
+    index = 0
+    while index < len(lines):
+        if index in skipped_lines:
+            index += 1
+            continue
+        line = lines[index]
         stripped = line.strip()
-
-        # 空行
-        if stripped == '':
-            i += 1
+        if not stripped:
+            index += 1
             continue
 
-        # 脚注定义行：跳过（已收集）
-        if fn_def_re.match(stripped):
-            i += 1
+        fence = FENCE_RE.match(line)
+        if fence:
+            marker = fence.group(1)
+            code_lines: list[str] = []
+            cursor = index + 1
+            while cursor < len(lines):
+                closing = FENCE_RE.match(lines[cursor])
+                if closing and closing.group(1)[0] == marker[0] and len(closing.group(1)) >= len(marker):
+                    break
+                code_lines.append(lines[cursor])
+                cursor += 1
+            _render_fenced_code(document, code_lines)
+            index = cursor + 1 if cursor < len(lines) else cursor
             continue
 
-        # 分隔线
-        if stripped == '---' or stripped == '***':
-            p = doc.add_paragraph()
-            pPr = p._p.get_or_add_pPr()
-            pBdr = OxmlElement('w:pBdr')
-            bottom = OxmlElement('w:bottom')
-            bottom.set(qn('w:val'), 'single')
-            bottom.set(qn('w:sz'), '6')
-            bottom.set(qn('w:space'), '1')
-            bottom.set(qn('w:color'), '999999')
-            pBdr.append(bottom)
-            pPr.append(pBdr)
-            i += 1
+        heading = HEADING_RE.match(stripped)
+        if heading:
+            level = len(heading.group(1))
+            paragraph = document.add_heading(level=level)
+            _render_inline(paragraph, heading.group(2).strip(), context)
+            index += 1
             continue
 
-        # 标题
-        m = re.match(r'^(#{1,4})\s+(.*)$', stripped)
-        if m:
-            level = len(m.group(1))
-            title = m.group(2).strip()
-            h = doc.add_heading(level=level)
-            run = h.add_run(title)
-            set_cn_font(run, HEADING_FONT, size=[18, 15, 13, 11.5][min(level-1, 3)], bold=True)
-            run.font.color.rgb = RGBColor(0, 0, 0)
-            if level <= 2:
-                h.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            i += 1
+        if _is_horizontal_rule(stripped):
+            _add_horizontal_rule(document)
+            index += 1
             continue
 
-        # 引用块（可能多行）
-        if stripped.startswith('>'):
-            quote_text = stripped.lstrip('>').strip()
-            # 合并连续引用
-            j = i + 1
-            while j < n and lines[j].strip().startswith('>'):
-                quote_text += '\n' + lines[j].strip().lstrip('>').strip()
-                j += 1
-            p = doc.add_paragraph()
-            p.paragraph_format.left_indent = Inches(0.3)
-            p.paragraph_format.right_indent = Inches(0.3)
-            # 引用左侧竖线
-            pPr = p._p.get_or_add_pPr()
-            pBdr = OxmlElement('w:pBdr')
-            left = OxmlElement('w:left')
-            left.set(qn('w:val'), 'single')
-            left.set(qn('w:sz'), '12')
-            left.set(qn('w:space'), '8')
-            left.set(qn('w:color'), '4472C4')
-            pBdr.append(left)
-            pPr.append(pBdr)
-            for k, seg in enumerate(quote_text.split('\n')):
-                if k > 0:
-                    p.add_run().add_break()
-                parse_inline(p, seg)
-            for run in p.runs:
-                run.font.italic = True
-                run.font.size = Pt(9.5)
-                set_cn_font(run, CN_FONT)
-            i = j
+        if index + 1 < len(lines) and _is_table_row(line) and _is_table_separator(lines[index + 1]):
+            header = _split_table_cells(line)
+            rows: list[list[str]] = []
+            cursor = index + 2
+            while cursor < len(lines) and _is_table_row(lines[cursor]):
+                rows.append(_split_table_cells(lines[cursor]))
+                cursor += 1
+            _render_table(document, header, rows, context)
+            index = cursor
             continue
 
-        # 表格：检测表头行 + 分隔行
-        if stripped.startswith('|') and i + 1 < n and is_table_separator(lines[i+1]):
-            # 收集表行直到非表行
-            header = parse_table_row(lines[i])
-            i += 2  # 跳过表头与分隔
-            rows = []
-            while i < n and lines[i].strip().startswith('|'):
-                rows.append(parse_table_row(lines[i]))
-                i += 1
-            table = doc.add_table(rows=1 + len(rows), cols=len(header))
-            # 填表头
-            for c_i, c in enumerate(header):
-                cell_p = table.rows[0].cells[c_i].paragraphs[0]
-                parse_inline(cell_p, c)
-            for r_i, row in enumerate(rows, start=1):
-                for c_i, c in enumerate(row):
-                    cell_p = table.rows[r_i].cells[c_i].paragraphs[0]
-                    parse_inline(cell_p, c)
-            style_table(table)
-            i += 1
+        if stripped.startswith(">"):
+            quote_lines: list[str] = []
+            cursor = index
+            while cursor < len(lines) and lines[cursor].lstrip().startswith(">"):
+                quote_lines.append(lines[cursor].lstrip()[1:].lstrip())
+                cursor += 1
+            paragraph = document.add_paragraph()
+            paragraph.paragraph_format.left_indent = Inches(0.3)
+            paragraph.paragraph_format.right_indent = Inches(0.3)
+            properties = paragraph._p.get_or_add_pPr()
+            borders = OxmlElement("w:pBdr")
+            left = OxmlElement("w:left")
+            left.set(qn("w:val"), "single")
+            left.set(qn("w:sz"), "12")
+            left.set(qn("w:space"), "8")
+            left.set(qn("w:color"), "4472C4")
+            borders.append(left)
+            properties.append(borders)
+            _render_inline(paragraph, "\n".join(quote_lines), context)
+            index = cursor
             continue
 
-        # 无序列表
-        if re.match(r'^[-*]\s+', stripped):
-            item = re.sub(r'^[-*]\s+', '', stripped)
-            p = doc.add_paragraph(style='List Bullet')
-            parse_inline(p, item)
-            i += 1
+        unordered = UNORDERED_LIST_RE.match(stripped)
+        if unordered:
+            paragraph = document.add_paragraph(style="List Bullet")
+            _render_inline(paragraph, unordered.group(1), context)
+            index += 1
             continue
 
-        # 有序列表（1. 2.）
-        if re.match(r'^\d+\.\s+', stripped):
-            item = re.sub(r'^\d+\.\s+', '', stripped)
-            p = doc.add_paragraph(style='List Number')
-            parse_inline(p, item)
-            i += 1
+        ordered = ORDERED_LIST_RE.match(stripped)
+        if ordered:
+            paragraph = document.add_paragraph(style="List Number")
+            _render_inline(paragraph, ordered.group(1), context)
+            index += 1
             continue
 
-        # 普通段落
-        p = doc.add_paragraph()
-        parse_inline(p, stripped)
-        i += 1
+        paragraph = document.add_paragraph()
+        _render_inline(paragraph, stripped, context)
+        index += 1
 
-    doc.save(docx_path)
-    print("saved:", docx_path)
-    # 真实 Word 脚注注入
-    nf = _inject_footnotes(docx_path)
-    if nf:
-        print("footnotes injected:", nf)
-    # 后置批注转换钩子：将「批注（判断过程、思路与假设）」章节转为真实 Word 批注气泡
-    _post_annotate(docx_path)
+    docx_path.parent.mkdir(parents=True, exist_ok=True)
+    document.save(docx_path)
+    _inject_footnotes(docx_path, context)
+    if convert_annotations:
+        _post_annotate(docx_path)
+    return docx_path
 
 
-def _post_annotate(docx_path):
-    """后置批注转换钩子（可选，由 ai-transparency-compliance skill 提供）。
-
-    若文档含「批注（判断过程、思路与假设）」章节，则调用 annotations_to_docx_comments
-    将其转为真实 Word 批注（comments.xml 气泡），并从正文移除该章节。
-    转换器为幂等设计：文档无批注章节时返回 0、不改动文档。
-    安全降级：转换器缺失/不可导入、或设置环境变量 MD2DOCX_NO_ANNOTATE 时静默跳过。
-    """
-    if os.environ.get('MD2DOCX_NO_ANNOTATE'):
-        return
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="将 Markdown 报告转换为 DOCX")
+    parser.add_argument("markdown", help="输入 Markdown 文件")
+    parser.add_argument("docx", help="输出 DOCX 文件")
+    parser.add_argument(
+        "--no-annotations",
+        action="store_true",
+        help="保留末尾批注章节，不转换为 Word 批注",
+    )
+    args = parser.parse_args(argv)
     try:
-        import importlib.util
-        candidates = [
-            os.environ.get('ANNOTATE_SCRIPT'),
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scripts', 'annotations_to_docx_comments.py'),
-            r'C:/Users/XY/.workbuddy/skills/ai-transparency-compliance/scripts/annotations_to_docx_comments.py',
-        ]
-        spec = None
-        for c in candidates:
-            if c and os.path.isfile(c):
-                spec = importlib.util.spec_from_file_location('annotations_to_docx_comments', c)
-                break
-        if spec is None:
-            return
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        n = mod.convert_docx_annotations(docx_path)
-        if n:
-            print("annotations -> Word comments:", n)
-    except Exception as e:
-        print("post_annotate skipped:", e)
+        output = convert(args.markdown, args.docx, convert_annotations=not args.no_annotations)
+    except (OSError, ValueError, RuntimeError, zipfile.BadZipFile) as error:
+        print(f"md_to_docx: {error}", file=sys.stderr)
+        return 1
+    print(f"saved: {output}")
+    return 0
 
 
-if __name__ == '__main__':
-    src = sys.argv[1]
-    dst = sys.argv[2]
-    convert(src, dst)
+if __name__ == "__main__":
+    raise SystemExit(main())
