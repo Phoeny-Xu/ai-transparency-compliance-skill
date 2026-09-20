@@ -45,14 +45,26 @@
 | detect / detection | 检测 | 〔通行〕双语解析"检测AI生成或篡改内容""AI检测工具" |
 | human review | 人工审核 | 〔通行〕双语解析"有关公共利益事项而发布的文本的人工审核" |
 | editorial control | 编辑控制 | 〔通行〕双语解析同上"编辑控制" |
+| editorial responsibility | （出版）编辑责任 | 〔通行〕双语解析同上"编辑责任"（Art. 50(4) 编辑责任例外要件②，与要件①编辑控制分流：control=把关行为，responsibility=责任承担） |
 | robustness | 稳健性 | 〔通行〕Art. 15；**禁用"鲁棒性"**。双语解析高频"稳健性/稳健"（有效性、互操作性、稳健性、可靠性）佐证 |
 | reliability | 可靠性 | 〔通行〕双语解析与 robustness 并列"reliable" |
 | interoperability | 互操作性 | 〔通行〕双语解析"interoperable" |
 | effectiveness | 有效性 | 〔通行〕双语解析"effective" |
 | accuracy | 准确性 | 〔通行〕Art. 15 |
 | cybersecurity | 网络安全 | 〔通行〕Art. 15 |
+| fingerprinting | 指纹 | 〔通行〕行为准则 Glossary：感知哈希；可选标记技术（Sub-measure 1.1.3 指纹/日志），非来源信息 |
+| forensic detection | 取证检测 | 〔通行〕行为准则：无需预先标记的取证检测（检测标记被剥离的内容）；可选补充（M2.2） |
+| signpost | 指示标记 | 〔通行〕行为准则 Glossary：指示用哪个检测方案的公开标记，互操作机制（M3.4） |
+| free-form text | 自由文本 | 〔通行〕行为准则 Glossary：无容器结构的裸文本 |
+| containerised text | 容器内文本 | 〔通行〕行为准则 Glossary：PDF/Word/HTML 等容器内文本 |
+| very short text | 极短文本 | 〔通行〕行为准则 Glossary：<200 token，现行技术难以可靠水印 |
+| analogue hole | 模拟孔洞 | 〔通行〕行为准则 Glossary：翻拍/录音等模拟环节损耗（M3.3 稳健性场景） |
+| desynchronisation | 去同步 | 〔通行〕行为准则 Glossary：裁剪/旋转/翻译循环等去同步处理（M3.3 稳健性场景） |
+| model identifier | 模型标识符 | 〔通行〕行为准则 M1.3 来源信息可含模型标识符与版本号；「标识」仅此技术语境，非中国《标识办法》义 |
 
 ## 二、加州（B&P Code §§22757–22757.6，SB 942 经 AB 853 修正；SB 1000 正式通过版 Enrolled）
+
+> **条号锚定（★本表约定，2026-09-18 立）**：表中 §22757.1(x) **未另标版本者，一律指现行法（SB 942 经 AB 853 修正）号**；标〔SB 1000〕者为 SB 1000 Enrolled 号。两版 §22757.1 重编号对照（现行法 → SB 1000）：covered provider (d)→(e)、GenAI hosting platform (g)→(h)、large online platform (h)(1)→(i)(1)、capture device (b)→(c)、capture device manufacturer (c)(1)→(d)(1)、GenAI 系统 (f)→(g)、digital signature (e)→(f)、metadata (l)→(k)、provenance data (o)→(n)、system provenance data (p)→(o)；SB 1000 新增 assistive technology (b)、minor modification (l)。**查条号一律回 `references/sources/` 打包原件，不得先联网**（第三方摘要常与某中间版本对齐而给出"看似正确"的错号）。
 
 | 英文原文 | 建议中文 | 性质/依据 |
 | --- | --- | --- |
@@ -63,18 +75,18 @@
 | synthetic content | 合成内容 | 〔通行〕§22757.1(f) |
 | latent disclosure | 隐式披露 | 〔通行〕§22757.3(a)（SB 1000 重构，原 §22757.3(b)）；演进文章译作"隐式标记"，侧重嵌入标记机制，本报告统一用"隐式披露" |
 | manifest disclosure | 显式披露 | 〔通行〕与 latent disclosure 相对；演进文章译作"显式标记"；SB 1000 已完全删除"提供显式披露选项"义务（非 AB 853） |
-| provenance data | 来源数据 | 〔通行〕§22757.1(n)（SB 1000 改写定义：关于数字内容来源与修改历史、格式符合或可互操作于标准制定组织广泛采纳规范的信息）；演进文章 x11 译"来源数据"（非"溯源数据"）；中国 GB 45438 的"溯源数据"为另一法定术语 |
+| provenance data | 来源数据 | 〔通行〕§22757.1(n)〔SB 1000〕/§22757.1(o)〔现行法〕（SB 1000 改写定义：关于数字内容来源与修改历史、格式符合或可互操作于标准制定组织广泛采纳规范的信息）；演进文章 x11 译"来源数据"（非"溯源数据"）；中国 GB 45438 的"溯源数据"为另一法定术语 |
 | personal provenance data | 个人来源数据 | 〔法定术语〕§22757.1 原定义（SB 1000 已删除该术语，义务客体改为 personal information）；演进文章专条译"个人来源数据" |
-| watermark | 水印 | 〔通行〕§22757.3(b) |
+| watermark | 水印 | 〔通行〕**非加州法条术语**（三份 CA 原件 0 命中；原记 §22757.3(b) 属误号——SB 942 该位为 latent disclosure，SB 1000 §22757.3 无 (b)）；用于中国 GB 45438-2025「内容隐式标识…准许采用数字水印等形式」与欧盟 CoP C1 M1.1「元数据＋不可感知水印」两层方案语境 |
 | digital signature | 数字签名 | 〔通行〕§22757.1 定义 |
-| metadata | 元数据 | 〔通行〕§22757.1(o) |
+| metadata | 元数据 | 〔通行〕§22757.1(l)〔现行法〕/§22757.1(k)〔SB 1000〕（原记 (o) 属误号——(o) 为 provenance data〔现行法〕／system provenance data〔SB 1000〕） |
 | disclosure verification tool | 披露验证工具 | 〔通行〕§22757.2；SB 1000 由"AI detection tool / AI检测工具"改名 |
 | assistive technology | 辅助技术 | 〔通行〕§22757.1(b)，SB 1000 新增定义；指商用取得/修改/定制的、用于增进/维持/改善身心障碍者功能能力的器物/设备/产品系统，及直接协助身心障碍者选择/取得/使用该器物等的服务 |
 | minor modification | 轻微修改 | 〔通行〕§22757.1(l)，SB 1000 新增定义；指亮度/对比度/色彩改变、锐化、饱和度调整、文件缩放、比例缩放、裁剪、文件格式转换、音频降噪去背景噪音等 |
 | capture device | 采集设备 | 〔通行〕§22757.1(b)；演进文章译"采集设备"（非"摄录设备"） |
 | capture device manufacturer | 采集设备制造商 | 〔通行〕§22757.3.3；演进文章译"采集设备制造商" |
 | clear and conspicuous | 明确且显著 | 〔通行〕§22757.3 |
-| materially alter | 实质性修改 | 〔通行〕§22757.1(f) |
+| created or altered, except by minor modification | 创作或修改（轻微修改除外） | 〔法定术语〕§22757.2(a)(1)／§22757.3(a)〔SB 1000 Enrolled〕；「轻微修改 minor modification」定义见 §22757.1(l)〔SB 1000 新增〕。**现行法（SB 942 原版 §22757.2(a)(1)）仅作 "created or altered"，无「轻微修改除外」限定**——引现行法文本时不得带入该限定 |
 | Attorney General | 检察长 | 〔法定术语〕§22757.4 |
 
 ## 三、中国（深度合成规定 / 暂行办法 / 标识办法 / GB 45438-2025）

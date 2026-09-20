@@ -54,6 +54,37 @@ SPAN_TAG_RE = re.compile(
 COLOR_RE = re.compile(r"^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 RAW_URL_RE = re.compile(r"(?:https?://|mailto:)", re.IGNORECASE)
 
+# --- HTML 注释剥离（2026-09-19 修复；2026-09-19 迭代为跨行）------------------
+# Markdown 源文件会夹带仅供 check_report.py 消费的 `<!-- lint:ignore ... -->`
+# 指令，以及 `<!-- 效力核验留痕 -->` 之类的内部注释；`build_skeleton.py` 的报头
+# 还会生成**两行**注释。这些属元数据，不应进入交付版 docx。
+# 主剥离在 `_strip_html_comments()`（跨行状态机，覆盖单行与多行）；下方两条正则与
+# 行级/`_render_inline` 的剔除保留作**纵深防御**。代码围栏与脚注正文不经过
+# `_render_inline`，故不会被误伤。
+HTML_COMMENT_LINE_RE = re.compile(r"^\s*<!--.*-->\s*$", re.DOTALL)
+HTML_COMMENT_INLINE_RE = re.compile(r"<!--.*?-->")
+
+# --- H1 安全加固（2026-09-15）------------------------------------------------
+# Markdown 显式链接 [label](target) 的 target 不经过 RAW_URL_RE（该正则只用于
+# 「裸 URL 自动识别」），会原样写入 docx 的外部超链接关系。若稿件含
+# javascript: / file: / data: 等 scheme，即构成注入面，故在入口加 scheme 白名单。
+ALLOWED_LINK_SCHEMES = frozenset({"http", "https", "mailto"})
+LINK_SCHEME_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.\-]*):")
+
+# 本次转换中被降级为纯文本的链接目标（main 据此告警并以非零码退出）
+LINK_WARNINGS: list[str] = []
+
+
+def is_safe_link_target(url: str | None) -> bool:
+    """H1：只放行 http/https/mailto 与无 scheme 的相对路径/锚点，其余一律拒绝。"""
+    candidate = (url or "").strip()
+    if not candidate:
+        return False
+    match = LINK_SCHEME_RE.match(candidate)
+    if match is None:
+        return True  # 无 scheme：相对路径、#锚点、//协议相对 URL
+    return match.group(1).lower() in ALLOWED_LINK_SCHEMES
+
 
 @dataclass(frozen=True)
 class InlineToken:
@@ -119,7 +150,16 @@ def _append_text(paragraph, text: str, *, bold: bool = False, code: bool = False
 
 
 def _add_hyperlink(paragraph, url: str, text: str) -> None:
-    """Add an external hyperlink, including relative and mailto targets."""
+    """Add an external hyperlink, including relative and mailto targets.
+
+    H1 安全加固：仅接受 is_safe_link_target 放行的 scheme；非法 target 直接拒绝，
+    避免 javascript:/file:/data: 等被写进 docx 超链接关系。调用方（_render_inline）
+    已做前置降级，此处为纵深防御。
+    """
+    if not is_safe_link_target(url):
+        raise ValueError(
+            f"拒绝不安全的超链接目标（scheme 白名单：http/https/mailto/相对路径）：{url!r}"
+        )
     relationship_id = paragraph.part.relate_to(url, HYPERLINK_REL, is_external=True)
     hyperlink = OxmlElement("w:hyperlink")
     hyperlink.set(qn("r:id"), relationship_id)
@@ -220,7 +260,17 @@ def _tokenize_inline(text: str, *, include_footnotes: bool = True) -> list[Inlin
             end = text.find("**", index + 2)
             if end >= 0:
                 flush_plain()
-                tokens.append(InlineToken("bold", text[index + 2 : end], bold=True))
+                # 递归解析加粗区间：加粗内部若含脚注引用/链接/行内代码，
+                # 不能作为不透明文本整体吞下（否则 **...**[^x] 类标题里的脚注
+                # 引用会漏渲染、定义成为孤儿）。文字类子标记统一提升为加粗。
+                for sub in _tokenize_inline(text[index + 2 : end], include_footnotes=include_footnotes):
+                    if sub.kind in ("text", "bold"):
+                        tokens.append(InlineToken("bold", sub.text, bold=True))
+                    elif sub.kind == "styled":
+                        tokens.append(InlineToken("styled", sub.text, color=sub.color, bold=True))
+                    else:
+                        # footnote / link / code 原样保留，交由 _render_inline 处理
+                        tokens.append(sub)
                 index = end + 2
                 continue
 
@@ -407,6 +457,8 @@ def _add_footnote_reference(paragraph, label: str, context: ConversionContext) -
 
 
 def _render_inline(paragraph, text: str, context: ConversionContext) -> None:
+    # 行内 HTML 注释属元数据，渲染前剔除（代码围栏/脚注正文不经过本函数，不受影响）
+    text = HTML_COMMENT_INLINE_RE.sub("", text)
     for token in _tokenize_inline(text):
         if token.kind == "text":
             _append_text(paragraph, token.text)
@@ -415,7 +467,13 @@ def _render_inline(paragraph, text: str, context: ConversionContext) -> None:
         elif token.kind == "code":
             _append_text(paragraph, token.text, code=True)
         elif token.kind == "link":
-            _add_hyperlink(paragraph, token.target or token.text, token.text)
+            target = token.target or token.text
+            if is_safe_link_target(target):
+                _add_hyperlink(paragraph, target, token.text)
+            else:
+                # H1：不静默放过、也不中断整篇构建——降级为纯文本并留告警
+                LINK_WARNINGS.append(target)
+                _append_text(paragraph, token.text)
         elif token.kind == "footnote":
             _add_footnote_reference(paragraph, token.text, context)
         elif token.kind == "styled":
@@ -698,12 +756,65 @@ def _post_annotate(docx_path: Path) -> int:
     return int(module.convert_docx_annotations(str(docx_path)))
 
 
+def _strip_html_comments(lines: list[str]) -> list[str]:
+    """跨行剥离 HTML 注释（`<!-- ... -->`），逐行一一对应、保持行数。
+
+    Markdown 源会夹带仅供 `check_report.py` 消费的注释（`<!-- lint:ignore … -->`）与
+    内部留痕（`<!-- 效力核验触发条件判定留痕 -->`）。这是**元数据**，不得进入交付版
+    docx。单行注释与**跨行注释**（如 `build_skeleton.py` 报头生成的两行注释）一律整段
+    移除；仅当注释闭合后同行尚有残余文本时才保留该残余。代码围栏内是字面样例，原样保留。
+    """
+    result: list[str] = []
+    in_fence: str | None = None
+    in_comment = False
+    for line in lines:
+        fence = FENCE_RE.match(line)
+        if not in_comment and fence:
+            marker = fence.group(1)
+            if in_fence is None:
+                in_fence = marker
+            elif marker[0] == in_fence[0] and len(marker) >= len(in_fence):
+                in_fence = None
+            result.append(line)
+            continue
+        if in_fence is not None:
+            result.append(line)
+            continue
+
+        pieces: list[str] = []
+        rest = line
+        while True:
+            if in_comment:
+                end = rest.find("-->")
+                if end == -1:
+                    break  # 注释仍未闭合，丢弃本行余下内容
+                in_comment = False
+                rest = rest[end + 3:]
+                continue
+            start = rest.find("<!--")
+            if start == -1:
+                pieces.append(rest)
+                break
+            pieces.append(rest[:start])  # 注释前的残余文本保留
+            rest = rest[start + 4:]
+            end = rest.find("-->")
+            if end == -1:
+                in_comment = True
+                break  # 注释跨行：本行余下内容丢弃
+            rest = rest[end + 3:]
+        result.append("".join(pieces))
+    return result
+
+
 def convert(markdown_path: str | Path, docx_path: str | Path, *, convert_annotations: bool = True) -> Path:
     """Convert one Markdown file and return the resulting DOCX path."""
+    LINK_WARNINGS.clear()
     markdown_path = Path(markdown_path)
     docx_path = Path(docx_path)
     text = markdown_path.read_text(encoding="utf-8")
     lines = text.splitlines()
+    # 先跨行剥离 HTML 注释，再收集脚注/渲染正文——保证 `skipped_lines` 等行号与之同源
+    lines = _strip_html_comments(lines)
     definitions, skipped_lines, footnote_ids = _collect_footnotes(lines)
     context = ConversionContext(definitions, footnote_ids)
 
@@ -716,7 +827,16 @@ def convert(markdown_path: str | Path, docx_path: str | Path, *, convert_annotat
             continue
         line = lines[index]
         stripped = line.strip()
+        # 整行 HTML 注释（含 `> <!-- ... -->` 变形）属元数据，整段跳过不进 docx
+        if HTML_COMMENT_LINE_RE.match(stripped) or HTML_COMMENT_LINE_RE.match(stripped.lstrip(">").strip()):
+            index += 1
+            continue
         if not stripped:
+            index += 1
+            continue
+        # 注释剥离后可能残留「只有引用标记」的行（原始形态 `> <!-- … -->`）：
+        # 视为空行跳过，避免生成空引用块。
+        if not stripped.strip(">").strip():
             index += 1
             continue
 
@@ -823,6 +943,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"md_to_docx: {error}", file=sys.stderr)
         return 1
     print(f"saved: {output}")
+    if LINK_WARNINGS:
+        print(
+            f"md_to_docx: 警告：{len(LINK_WARNINGS)} 个超链接因 scheme 不在白名单"
+            "（http/https/mailto/相对路径）内被降级为纯文本，未写入 docx：",
+            file=sys.stderr,
+        )
+        for target in dict.fromkeys(LINK_WARNINGS):
+            print(f"  - {target}", file=sys.stderr)
+        return 2
     return 0
 
 

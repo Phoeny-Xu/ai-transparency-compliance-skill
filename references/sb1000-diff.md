@@ -32,6 +32,24 @@
 | 豁免 | §22757.5，电子游戏/电视/流媒体/电影/互动体验五类 | **收窄为仅「电子游戏」**；**新增** (b) 辅助技术限时豁免（至 2029-01-01） | 豁免范围收窄 + 辅助技术临时豁免 |
 | 生效 | §22757.6，2026-08-02 生效 | 紧急法案条款，**一经签署/自动成为法律即时生效** | 即时生效 |
 
+> **§22757.1 定义条三版序号链（★查号先读此处；2026-09-18 逐字核 `references/sources/` 打包原件）**：covered provider 在 **SB 942 原始版＝(b)**（含 100 万门槛，`CA-SB942-chaptered.md` L69）→ **AB 853 修正版＝现行法＝(d)**（门槛未改，`CA-AB853-chaptered.md` L68）→ **SB 1000 Enrolled＝(e)**（门槛已删，`CA-SB1000-enrolled.md` L40），即 **(b)→(d)→(e)**。连带位移：GenAI hosting platform 由现行法 (g) → SB 1000 (h)；large online platform 由现行法 (h)(1) → SB 1000 (i)(1)。**注意 §22757.2 是义务条**（SB 942＝AI detection tool、SB 1000 改名 disclosure verification tool），三版中均非定义条。引用条号须标明锚定版本（现行法＝AB 853 版），且**先读打包原件、不得先联网**——第三方摘要常与某中间版本对齐而给出"看似正确"的错号。
+
+## 三版 §22757.1 子项对照（查号基准表）
+
+| 主体 | SB 942 原始版 | **AB 853＝现行法** | SB 1000 Enrolled |
+|---|---|---|---|
+| Covered provider | **(b)**（含 100 万门槛） | **(d)** | **(e)**（门槛已删） |
+| Capture device | — | (b) | (c) |
+| Capture device manufacturer | — | (c)(1) | (d)(1) |
+| Digital signature | — | (e) | — |
+| GenAI system | (c) | (f) | (g) |
+| GenAI hosting platform | — | **(g)** | **(h)** |
+| Large online platform | — | **(h)(1)** | **(i)(1)** |
+| Metadata | (f) | (l) | (k) |
+| Provenance data | (i) | (o) | (n) |
+| System provenance data | — | (p) | (o) |
+| 其他新增 | — | (i) Latent、(k) Mass messaging | (b) Assistive technology、(l) Minor modification |
+
 > **不受影响**：§22757.3.1 / .3.2 / .3.3（大型网络平台 / 托管平台 / 采集设备制造商义务）经 SB 1000 未作修订（仅 §22757.1 定义条重编号影响其引用序号）。
 
 ## agent 主动提示要点（加州相关场景必含）
