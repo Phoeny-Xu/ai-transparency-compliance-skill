@@ -1,4 +1,4 @@
-# 加州规则库：California AI Transparency Act（SB 1000 正式通过版，Enrolled）
+# 加州规则库：California AI Transparency Act（现行：SB 942 经 AB 853；SB 1000 Enrolled 待签署——义务基准切换见「〇、效力状态开关」）
 
 ```yaml
 last_verified: 2026-09-05
@@ -29,7 +29,7 @@ SB 1000 为 CAITA 修正案，**已通过议会、尚待州长签署**，属**�
 
 > **签署期限（加州宪法 Art. IV §10(b)(2)）**：SB 1000 属「9 月 1 日前通过、9 月 1 日后在州长手中」情形，州长须于 **2026-09-30** 前签署或否决，否则法案**自动成为法律**（加州无 pocket veto）。
 > **当前状态（核验于 2026-09-05）**：待签署（Enrolled 2026-08-30；2026-09-02 提交州长）。**此状态下，现行有效义务仍以 SB 942 经 AB 853 修正为准**，SB 1000 生效版仅作前瞻变更提示；待签署或自动成为法律后，以 SB 1000 生效版为准。
-> 报告生成时的处理规则见 `references/sb1000-diff.md` 与 SKILL.md 运行时指令。
+> 报告生成时的处理规则见 `references/sb1000-diff.md` 与 SKILL.md §5 法域处理索引。
 
 ---
 
@@ -162,7 +162,7 @@ SB 1000 为 CAITA 修正案，**已通过议会、尚待州长签署**，属**�
 
 > **§22757.3.2(a) 原文**：「(a) A GenAI system hosting platform shall not knowingly make available a GenAI system that does not place disclosures pursuant to Section 22757.3.」
 
-> **⚠️ 报告撰写区分（★强制，与门禁⑬/㉒协同）**：GenAI hosting platform 属「已落入定义、义务待生效」状态——现行法定义（§22757.1(h)）即可判定构成，但§22757.3.2 义务**延缓至 2027-01-01 生效**。报告须将其与「covered provider 主体资格未达之不触发」**分列**，单列标注「已适用、义务待生效（2027-01-01）」，**不得并列为同一「当前不触发」**。同理适用于 large online platform（§22757.3.1，2027-01-01）、capture device manufacturer（§22757.3.3，2028-01-01）——三者定义均已可落入、仅义务延缓。SB 1000 前瞻变更提示仅附着 covered provider 类（定义已变），不得外溢至 hosting platform / large online platform / capture device manufacturer 类（其定义不受 SB 1000 影响）。
+> **⚠️ 报告撰写区分（★强制，与门禁⑯/⑱协同）**：GenAI hosting platform 属「已落入定义、义务待生效」状态——现行法定义（§22757.1(g)）即可判定构成，但§22757.3.2 义务**延缓至 2027-01-01 生效**。报告须将其与「covered provider 主体资格未达之不触发」**分列**，单列标注「已适用、义务待生效（2027-01-01）」，**不得并列为同一「当前不触发」**。同理适用于 large online platform（§22757.3.1，2027-01-01）、capture device manufacturer（§22757.3.3，2028-01-01）——三者定义均已可落入、仅义务延缓。SB 1000 前瞻变更提示仅附着 covered provider 类（定义已变），不得外溢至 hosting platform / large online platform / capture device manufacturer 类（其定义不受 SB 1000 影响）。
 
 ### 4. Capture device manufacturer（采集设备制造商）——2028-01-01 生效
 
