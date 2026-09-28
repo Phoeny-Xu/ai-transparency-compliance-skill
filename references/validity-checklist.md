@@ -60,6 +60,18 @@
 
 | **SB 1000（CAITA 修正案）** | **监控点**：签署/否决状态（州长须 2026-09-30 前签署或否决，否则自动成为法律并即时生效）；签署后取得章号 | leginfo 法案历史页 https://leginfo.legislature.ca.gov/faces/billHistoryClient.xhtml?bill_id=202520260SB1000 |
 
+| BOT Act（B&P Code §§17940–17943） | 是否修订；§17941的意图、目的和披露抗辩是否仍为现行文本 | leginfo SB 1001 chaptered；`sources/CA-SB1001-BOT-Act-chaptered.md` |
+
+| SB 243／SB 867（陪伴型聊天机器人） | §22601定义/排除及§22602、§22604是否被后续法案修订；SB 867 §22601版本的生效日 | leginfo chaptered；`sources/CA-SB243-chaptered.md`、`CA-SB867-chaptered.md` |
+
+| SB 1119（Adam's Law） | **条款级核验**：§22602修订和§21811自2027-01-01生效；§§21812、21812.5、21813自2027-07-01施行；§21814按AB 1405是否章化选择版本 | leginfo chaptered；`sources/CA-SB1119-chaptered.md` |
+
+| SB 1050（合成表演者广告） | 已章化；2027-01-01普通生效；§17610角色、例外与执法条款是否修订 | leginfo chaptered；`sources/CA-SB1050-chaptered.md` |
+
+| SB 896／AB 3030 | 州政府服务/福利通信及患者临床信息通信披露条款是否修订；人审例外是否变化 | leginfo chaptered；`sources/CA-SB896-chaptered.md`、`CA-AB3030-chaptered.md` |
+
+| **AB 1609（客服机器人）** | **监控点**：截至2026-09-22为Enrolled、待州长处理；签署/否决/未签署成法及法定生效日须分别核验 | leginfo历史页及`references/sources/CA-AB1609-enrolled.md` |
+
 | 联邦层面动态 | 联邦AI披露立法是否推进、是否涉及preemption | congress.gov（按需） |
 
 | 标准认定 | 「广泛采纳规范」（C2PA等）的最新认定 | 无需每次核验；涉具体技术方案时查 |
@@ -80,9 +92,13 @@
 
 | 2026-12-02 | 欧盟Art. 111(4)过渡期届满：2026-08-02前投放市场的系统须完成Art. 50(2)合规；新深度伪造/CSAM禁止条款适用 | 欧盟provider（存量系统） |
 
+| 2027-01-01 | 加州SB 1119对§22602的修订及§21811生效；SB 1050合成表演者广告规则生效 | 加州陪伴型聊天机器人运营者、广告创作者与广告媒介 |
+
 | 2027-01-01 | 加州large online platform、GenAI hosting platform义务生效 | 加州平台类主体 |
 
 | 2027-02-02 | 欧盟行为准则Measure 3.4水印检测互操作最低方案落地 | 欧盟provider（准则签署者） |
+
+| 2027-07-01 | 加州SB 1119的§§21812、21812.5、21813开始施行 | 允许儿童继续使用的陪伴型聊天机器人运营者 |
 
 | 2028-01-01 | 加州采集设备制造商义务生效（限2028年起首次州内生产销售设备） | 加州设备制造商 |
 

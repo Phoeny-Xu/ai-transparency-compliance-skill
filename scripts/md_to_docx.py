@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Convert the reports produced by this Skill from Markdown to DOCX.
+"""Compatibility fallback for converting Skill reports from Markdown to DOCX.
 
 The converter deliberately implements the small Markdown subset used by the
 templates instead of depending on a renderer with an unstable extension set.
 It supports headings, lists, block quotes, fenced and inline code, links,
-tables, and real Word footnotes. A final internal annotation section can be
-converted to Word comments by the bundled companion script.
+tables, and real Word footnotes. It is not the only or default DOCX path and
+does not automatically run the separate comment-conversion fallback.
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import re
 import shutil
 import sys
@@ -37,6 +36,17 @@ HYPERLINK_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relations
 FOOTNOTE_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes"
 FOOTNOTE_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"
 FOOTNOTE_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+# 脚注相关字符/段落样式（python-docx 默认模板未定义，须自行补齐，
+# 否则编号不上标、脚注区不缩小字号）。2026-09-23 用户实测反馈后补入。
+FOOTNOTE_STYLE_DEFINITIONS = (
+    '<w:style w:type="character" w:styleId="FootnoteReference">'
+    '<w:name w:val="footnote reference"/>'
+    '<w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>'
+    '<w:style w:type="paragraph" w:styleId="FootnoteText">'
+    '<w:name w:val="footnote text"/><w:basedOn w:val="Normal"/>'
+    '<w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>'
+    '<w:rPr><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:style>'
+)
 
 FOOTNOTE_DEF_RE = re.compile(r"^[ \t]*\[\^([^\]\s]+)\]:[ \t]*(.*)$")
 HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
@@ -451,6 +461,12 @@ def _add_footnote_reference(paragraph, label: str, context: ConversionContext) -
     style = OxmlElement("w:rStyle")
     style.set(qn("w:val"), "FootnoteReference")
     rpr.append(style)
+    # 直接格式兜底（2026-09-23）：python-docx 默认模板的 styles.xml 不含
+    # FootnoteReference 字符样式，仅引用样式名时 Word 会忽略未知样式，
+    # 编号遂以正文格式显示（不上标）。此处显式写入 vertAlign，不再依赖样式存在。
+    vert_align = OxmlElement("w:vertAlign")
+    vert_align.set(qn("w:val"), "superscript")
+    rpr.append(vert_align)
     reference = OxmlElement("w:footnoteReference")
     reference.set(qn("w:id"), str(footnote_id))
     run._element.append(reference)
@@ -696,7 +712,8 @@ def _inject_footnotes(docx_path: Path, context: ConversionContext) -> int:
             (
                 f'<w:footnote w:id="{footnote_id}">',
                 '<w:p><w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr>',
-                '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r>',
+                '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/>'
+                '<w:vertAlign w:val="superscript"/></w:rPr><w:footnoteRef/></w:r>',
                 body,
                 "</w:p></w:footnote>",
             )
@@ -706,6 +723,22 @@ def _inject_footnotes(docx_path: Path, context: ConversionContext) -> int:
     with zipfile.ZipFile(docx_path, "r") as archive:
         content = {name: archive.read(name) for name in archive.namelist()}
     content["word/footnotes.xml"] = "".join(parts).encode("utf-8")
+
+    # 样式定义注入（2026-09-23）：python-docx 默认模板缺脚注相关样式，
+    # 仅引样式名会静默退化为正文格式（编号不上标、脚注区不缩小字号）。
+    # 这里补齐标准定义；run 级 vertAlign 仍保留，两层保证渲染一致。
+    styles_name = "word/styles.xml"
+    if styles_name in content:
+        styles_xml = content[styles_name].decode("utf-8")
+        if 'w:styleId="FootnoteReference"' not in styles_xml:
+            if "</w:styles>" not in styles_xml:
+                raise RuntimeError(
+                    "word/styles.xml 缺少 </w:styles> 闭合标签，无法注入脚注样式定义"
+                )
+            styles_xml = styles_xml.replace(
+                "</w:styles>", FOOTNOTE_STYLE_DEFINITIONS + "</w:styles>", 1
+            )
+            content[styles_name] = styles_xml.encode("utf-8")
 
     content_types = etree.fromstring(content["[Content_Types].xml"])
     content_type_ns = content_types.nsmap.get(None)
@@ -741,19 +774,6 @@ def _inject_footnotes(docx_path: Path, context: ConversionContext) -> int:
             archive.writestr(name, data)
     shutil.move(temporary, docx_path)
     return len(context.footnote_ids)
-
-
-def _post_annotate(docx_path: Path) -> int:
-    """Run the sibling comment converter from the actual script directory."""
-    converter_path = Path(__file__).resolve().with_name("annotations_to_docx_comments.py")
-    if not converter_path.is_file():
-        raise RuntimeError(f"Annotation converter is missing: {converter_path}")
-    spec = importlib.util.spec_from_file_location("annotations_to_docx_comments", converter_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Could not load the annotation converter")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return int(module.convert_docx_annotations(str(docx_path)))
 
 
 def _strip_html_comments(lines: list[str]) -> list[str]:
@@ -806,7 +826,7 @@ def _strip_html_comments(lines: list[str]) -> list[str]:
     return result
 
 
-def convert(markdown_path: str | Path, docx_path: str | Path, *, convert_annotations: bool = True) -> Path:
+def convert(markdown_path: str | Path, docx_path: str | Path) -> Path:
     """Convert one Markdown file and return the resulting DOCX path."""
     LINK_WARNINGS.clear()
     markdown_path = Path(markdown_path)
@@ -910,8 +930,14 @@ def convert(markdown_path: str | Path, docx_path: str | Path, *, convert_annotat
 
         ordered = ORDERED_LIST_RE.match(stripped)
         if ordered:
-            paragraph = document.add_paragraph(style="List Number")
-            _render_inline(paragraph, ordered.group(1), context)
+            # 有序列表：编号一律写成普通文本，不得交给 Word 自动编号（`List Number`）。
+            # 自动编号会让全篇共用一个序列（不同章节、法域之间编号连续），把中英双语续行
+            # 误判为新的编号项，并与源 Markdown 已写好的显式编号混用。缩进层级改由段前
+            # 缩进表达。规则见 references/reporting-rules.md「编号与列表」节。
+            paragraph = document.add_paragraph()
+            depth = 1 + (len(line) - len(line.lstrip())) // 3
+            paragraph.paragraph_format.left_indent = Inches(0.25 * depth)
+            _render_inline(paragraph, stripped, context)
             index += 1
             continue
 
@@ -922,23 +948,28 @@ def convert(markdown_path: str | Path, docx_path: str | Path, *, convert_annotat
     docx_path.parent.mkdir(parents=True, exist_ok=True)
     document.save(docx_path)
     _inject_footnotes(docx_path, context)
-    if convert_annotations:
-        _post_annotate(docx_path)
     return docx_path
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="将 Markdown 报告转换为 DOCX")
+    parser = argparse.ArgumentParser(description="兼容性回退：将 Markdown 报告转换为 DOCX")
     parser.add_argument("markdown", help="输入 Markdown 文件")
     parser.add_argument("docx", help="输出 DOCX 文件")
     parser.add_argument(
-        "--no-annotations",
+        "--confirm-fallback",
         action="store_true",
-        help="保留末尾批注章节，不转换为 Word 批注",
+        help="确认满足回退条件；缺少该参数时不创建或覆盖 DOCX",
     )
     args = parser.parse_args(argv)
+    if not args.confirm_fallback:
+        print(
+            "md_to_docx: 需要明确回退确认；请先确认原生DOCX能力不可用，"
+            "或原生产出已连续两次未通过结构验收，再使用 --confirm-fallback。",
+            file=sys.stderr,
+        )
+        return 1
     try:
-        output = convert(args.markdown, args.docx, convert_annotations=not args.no_annotations)
+        output = convert(args.markdown, args.docx)
     except (OSError, ValueError, RuntimeError, zipfile.BadZipFile) as error:
         print(f"md_to_docx: {error}", file=sys.stderr)
         return 1

@@ -40,6 +40,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -76,6 +77,17 @@ B4_2C_ORDINAL = {
     "<=100万": 3,
     "100万-200万": 4,
     ">200万": 5,
+}
+
+# B3a 合法统计口径闭集（锚定 §22757.1(d) "monthly visitors or users"；V3-02 口径锁）
+# 同义变体按落盘惯例放行；累计/非月度口径（downloads、registrations 等）一律闭集外。
+B3A_METRIC_ALLOWED = {
+    "mau",                # 月活跃用户
+    "monthly_users",      # 月用户
+    "monthly_visitors",   # 月访客
+    "users",              # 月用户（落盘同义形态）
+    "visitors",           # 月访客（落盘同义形态）
+    "users/visitors",     # 月用户或月访客
 }
 
 NATIONAL = {"中国", "中国大陆", "CN", "欧盟", "EU", "加州", "CA", "美国加州"}
@@ -133,6 +145,159 @@ def _b5b_interactive(answers: dict) -> bool:
     return bool(value)
 
 
+def derive_b5b_chat_status(answers: dict) -> str | None:
+    """派生加州B12路由用的聊天状态；EU-only不落盘该派生键。
+
+    agent2（2026-09-28）收紧：勾选对话形态须经同卡确认（``chat_confirmed=yes``）
+    方可落 ``yes``；未经确认（缺键／unknown／否认后未修正）只能落 ``unknown``——
+    「有没有对话式功能」是客观事实，由用户显式确认，不由引擎从勾选推定。
+    """
+    if not _a6_has(answers, "加州"):
+        return None
+    raw = answers.get("B5b")
+    if not isinstance(raw, list) or not raw:
+        return "unknown"
+    values = {str(item).strip() for item in raw if str(item).strip()}
+    if any(any(token in value for token in ("聊天机器人", "智能助手", "客服机器人")) for value in values):
+        # agent2：主选项对话形态须同卡确认（chat_confirmed）后才能落 yes。
+        confirmed = answers.get("chat_confirmed")
+        if confirmed == "yes":
+            return "yes"
+        return "unknown"
+    if any("不确定" in value for value in values):
+        return "unknown"
+    if any(value.startswith("其它") for value in values):
+        confirmed = answers.get("B5b_other_chat_confirmed")
+        if confirmed is True:
+            return "yes"
+        if confirmed is False:
+            values.discard(next((value for value in values if value.startswith("其它")), ""))
+        else:
+            return "unknown"
+    non_chat_tokens = ("提示词", "图形界面", "无自然人直接交互界面")
+    if values and all(any(token in value for token in non_chat_tokens) for value in values):
+        return "no"
+    return "unknown"
+
+
+def derive_b12_companion_status(answers: dict) -> str:
+    """从B12客观事实派生陪伴型聊天机器人状态，不推定unknown成立。"""
+    b12 = answers.get("B12")
+    if not isinstance(b12, dict):
+        return "conditional"
+    core = [
+        b12.get("natural_language_interface"),
+        b12.get("adaptive_humanlike_responses"),
+        b12.get("social_or_emotional_function"),
+        b12.get("sustains_relationship"),
+    ]
+    if "no" in core:
+        return "no"
+    if any(value != "yes" for value in core):
+        return "conditional"
+    use_cases = set(b12.get("use_cases") or [])
+    if not use_cases:
+        return "conditional"
+    excluded_only = {"客服", "企业运营", "基于源信息的生产力或分析", "内部研究", "技术支持"}
+    if use_cases and use_cases <= excluded_only:
+        return "no"
+    if use_cases == {"游戏功能"}:
+        status = b12.get("game_scope_limited")
+        return "no" if status == "yes" else "conditional" if status != "no" else "yes"
+    if use_cases == {"独立语音助手"}:
+        device = b12.get("standalone_voice_device")
+        emotional = b12.get("voice_emotional_output")
+        if device == "yes" and emotional == "no":
+            return "no"
+        if device in {None, "unknown"} or emotional in {None, "unknown"}:
+            return "conditional"
+    return "yes"
+
+
+def derive_b12_human_misidentification_status(answers: dict) -> str:
+    """仅读B12身份事实；B10当前措施被刻意排除。"""
+    b12 = answers.get("B12")
+    if not isinstance(b12, dict):
+        return "conditional"
+    signals = {str(value).strip() for value in (b12.get("human_identity_signals") or [])}
+    framing = b12.get("fictional_or_ai_framing")
+    if "不确定" in signals or framing == "unknown" or framing is None:
+        return "conditional"
+    has_human_signal = bool(signals - {"以上皆无"})
+    if has_human_signal and framing == "no":
+        return "yes"
+    if not has_human_signal and framing == "yes":
+        return "no"
+    return "conditional"
+
+
+# ---------------------------------------------------------------------------
+# B12 派生键的权威口径（B-11′，2026-09-23）
+# ---------------------------------------------------------------------------
+# 背景：三个派生键的消费情况原本不一致——`B5b_chat_status` 全仓零消费方（消费端一律
+# 重算），而 `B12_companion_status` / `B12_human_misidentification_status` 被
+# `build_skeleton` 直读落盘值（不重算）。一个派生键写错即可端到端静默改变交付物的
+# 义务总览行集合，且 `overview_rows()` 的行集合无任何机器比对。
+#
+# 本节的统一口径：**权威值由代码重算**（确定性、可复现），落盘值仅作审计留痕；
+# 但人工可基于代码不可捕获的产品语境作**更严**判定，故取「重算值」与「落盘值」中
+# **较严**者作为权威值——以免机械重算覆盖真实业务状态（案例32：低龄儿童语境下
+# 人工取 conditional，而重算为 no）。落盘值**更宽**（少报）方属可疑，由
+# `cross_check_derived_keys()` 报答案级矛盾。
+
+# 三态严格度序：no（不适用）＜ conditional（待核）＜ yes（义务成立）
+_B12_STRICTNESS = {"no": 0, "conditional": 1, "yes": 2}
+
+# B5b_chat_status 三态严格度序：no（无对话）＜ unknown（不确定）＜ yes（有对话）
+_CHAT_STRICTNESS = {"no": 0, "unknown": 1, "yes": 2}
+
+
+def b12_card_in_play(answers: dict) -> bool:
+    """B12 卡是否进入判定范围。
+
+    门控与 TRIGGER_TABLE 的 B12 行同源（``B5b_chat_status∈{yes,unknown}``），但**要求 B5b
+    实际采集过**（存在且非空）：若整题未采集，则正确的诊断是「交互事实缺失」（更上游的
+    缺口），此时报「B12 缺键」属误报——也会把仅含最小字段的合成审计全部噪声化。
+
+    另加防御分支：卡未触发但已落 B12 对象（口径分裂态）按已进入判定处理，
+    以免同一份骨架出现「效力核验行有、义务总览行无」。
+    """
+    b5b = answers.get("B5b")
+    if isinstance(b5b, list) and b5b and derive_b5b_chat_status(answers) in {"yes", "unknown"}:
+        return True
+    return isinstance(answers.get("B12"), dict)
+
+
+def _stricter(derived: str, recorded: object, order: dict[str, int]) -> str:
+    """取重算值与落盘值中较严者；落盘值缺失/越界时以重算值为准。"""
+    rec = str(recorded).strip().lower() if recorded is not None else ""
+    if rec in order:
+        return max((derived, rec), key=lambda v: order[v])
+    return derived
+
+
+def resolve_b12_companion_status(answers: dict) -> str:
+    """B12-① 权威值：卡未进入判定 → ``"not_triggered"``；否则取较重算的较严者。"""
+    if not b12_card_in_play(answers):
+        return "not_triggered"
+    return _stricter(
+        derive_b12_companion_status(answers),
+        answers.get("B12_companion_status"),
+        _B12_STRICTNESS,
+    )
+
+
+def resolve_b12_human_misidentification_status(answers: dict) -> str:
+    """B12-② 权威值，口径同 :func:`resolve_b12_companion_status`。"""
+    if not b12_card_in_play(answers):
+        return "not_triggered"
+    return _stricter(
+        derive_b12_human_misidentification_status(answers),
+        answers.get("B12_human_misidentification_status"),
+        _B12_STRICTNESS,
+    )
+
+
 TRIGGER_TABLE: list[dict] = [
     {
         "id": "B1",
@@ -168,14 +333,23 @@ TRIGGER_TABLE: list[dict] = [
     {
         "id": "B5b",
         "depends_on": {"A6"},
-        "cond": lambda a: _a6_has(a, "欧盟") and _b5b_interactive(a),
-        "desc": "A6含欧盟 且产品与自然人交互",
+        "cond": lambda a: (_a6_has(a, "欧盟") or _a6_has(a, "加州")) and _b5b_interactive(a),
+        "desc": "A6含欧盟或加州 且产品可能与自然人交互",
     },
     {
         "id": "B6",
         "depends_on": {"A6", "A3"},
         "cond": lambda a: _a6_has(a, "欧盟") and _a3_any(a, ("文本",)),
         "desc": "A3含文本 且 A6含欧盟（①承担门控）",
+    },
+    {
+        # B-7（2026-09-23）：Art. 50(4) 第 1-2 项（深度伪造：图像/音频/视频）此前无采集位——
+        # 与 B6（第 3 项·公共利益文本）同属该款但对**不同模态**，故单列一行触发状态、
+        # 独立落盘 `B6_deepfake`；呈现仍并入 B6 卡（一次采集，不增交互轮次）。
+        "id": "B6-深伪",
+        "depends_on": {"A6", "A3"},
+        "cond": lambda a: _a6_has(a, "欧盟") and _a3_any(a, ("图像", "音频", "视频")),
+        "desc": "A3含图像/音频/视频 且 A6含欧盟（Art. 50(4) 第1-2项深伪披露）",
     },
     {
         "id": "B7",
@@ -201,6 +375,18 @@ TRIGGER_TABLE: list[dict] = [
         "cond": lambda a: _a3_generates(a),
         "desc": "A3功能含生成且有输出模态（纯分析/检测型不问）",
     },
+    {
+        "id": "B12",
+        "depends_on": {"A6", "B5b"},
+        "cond": lambda a: _a6_has(a, "加州") and derive_b5b_chat_status(a) in {"yes", "unknown"},
+        "desc": "A6含加州 且 B5b_chat_status为yes/unknown",
+    },
+    {
+        "id": "B13",
+        "depends_on": {"A6"},
+        "cond": lambda a: _a6_has(a, "加州"),
+        "desc": "A6含加州（入口题恒呈现；卡内role=none时终止后续）",
+    },
 ]
 
 
@@ -221,6 +407,17 @@ def assert_conditions_not_anchored_on_a4() -> None:
         )
 
 
+def assert_b10_isolation() -> None:
+    """B10只能用于差距分析，不得进入触发或法律适用派生链。"""
+    forbidden = {"B10", "B10_current_practices", "B10_status"}
+    offenders = [
+        row["id"] for row in TRIGGER_TABLE
+        if forbidden & set(row.get("depends_on", set()))
+    ]
+    if offenders:
+        raise AnchorViolation("B10进入触发链：" + ", ".join(offenders))
+
+
 def always_true_ids() -> list[str]:
     """声明为恒触发的行（数据驱动，避免用「恰好返回 True 的 lambda」当不变量）。"""
     return [row["id"] for row in TRIGGER_TABLE if row.get("always")]
@@ -228,6 +425,7 @@ def always_true_ids() -> list[str]:
 
 def resolve_triggers(answers: dict) -> list[str]:
     assert_conditions_not_anchored_on_a4()
+    assert_b10_isolation()
     triggered = [row["id"] for row in TRIGGER_TABLE if row["cond"](answers)]
     missing = [tid for tid in always_true_ids() if tid not in triggered]
     if missing:
@@ -278,6 +476,45 @@ def china_connection_points(answers: dict) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
+def _scale_ordinal_from_raw(value) -> int | None:
+    """把 B3a_details.raw_value 的自由数值映射到 SCALE_ORDINAL 序数档；无法解析返回 None。
+
+    支持 900000 / "900000" / "约90万" / "90万" / "0.9million" 等落盘形态；
+    档位判断只作区间覆盖检查，不强制格式。
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        n = float(value)
+    elif isinstance(value, str):
+        s = value.strip().replace(",", "").replace("，", "")
+        m = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*万", s)
+        if m:
+            n = float(m.group(1)) * 10000
+        else:
+            m2 = re.search(r"([0-9]+(?:\.[0-9]+)?)", s)
+            if not m2:
+                return None
+            n = float(m2.group(1))
+            if ("million" in s.lower()) or ("百万" in s):
+                n *= 1000000
+    else:
+        return None
+    if n < 0:
+        return None
+    if n == 0:
+        return 0
+    if n < 10000:
+        return 1
+    if n < 100000:
+        return 2
+    if n < 1000000:
+        return 3
+    if n < 10000000:
+        return 4
+    return 5
+
+
 def cross_check_scale(answers: dict) -> list[str]:
     """校验规模摘要和详情的内部完整性，不把不同法定口径强行比较。
 
@@ -300,6 +537,31 @@ def cross_check_scale(answers: dict) -> list[str]:
             problems.append(
                 f"B4_2c 档位无法识别：「{raw}」（允许值：≤100万 / 100万-200万 / >200万 / 不确定）"
             )
+        # F-4（2026-09-23）：平台候选成立（B4_2=是/不确定）时门槛口径卡不得缺席——
+        # 「接收分发内容用户」与「创作者·协作者用户」是 large online platform 三要件中
+        # 200 万独立月用户量级关的**法定区分**（role-mapping 环节④规模关、ca-rules §2；
+        # 问卷 B4②(c) 同源），agent 不得把平台总用户与二者混为一个数字。
+        # 与同族规则（下方 monthly_values）**同层级**：答案级问题、退出码 1，不伪造历史数据。
+        # 只钉「字段在位」，不要求数值非空（探数未果可落空数组＋阈值解释记待核）；
+        # 摘要档位为「不确定」时不强求（无确定量级即无需该区分）。
+        if raw and raw != "不确定":
+            details = answers.get("B4_2c_details")
+            if not isinstance(details, dict):
+                problems.append(
+                    "B4_2c 给出确定量级但缺 B4_2c_details 门槛口径卡：须记录此前12个月逐月独立用户、"
+                    "接收分发内容用户、创作者/协作者用户（问卷 B4②(c)）；未采到者可落空数组并记待核"
+                )
+            else:
+                missing_lop = [
+                    f
+                    for f in ("recipient_users", "creator_or_collaborator_users")
+                    if f not in details
+                ]
+                if missing_lop:
+                    problems.append(
+                        "B4_2c_details 缺字段 " + "、".join(missing_lop)
+                        + "（接收分发内容用户与创作者/协作者用户是 large online platform 门槛的法定区分，须分别记录）"
+                    )
 
     # 新版平台详情要求逐月数据；旧版摘要没有详情时只列待核提示，不伪造历史数据。
     platform_details = answers.get("B4_2c_details")
@@ -313,7 +575,131 @@ def cross_check_scale(answers: dict) -> list[str]:
         elif answers.get("B4_2c") not in (None, "", "不确定"):
             problems.append("B4_2c 只有门槛摘要，缺少 B4_2c_details.monthly_values；请核实此前12个月数据")
 
+    # ---- B-1 同记录自洽校验（B3a 档位 × B3a_details.raw_value，2026-09-23 新增）----
+    # 单记录内部自洽：raw_value 落入某档区间而勾选档位与之矛盾 → 答案级矛盾。
+    # 零跨口径推理、不依赖 A4a；raw_value 缺失不报（详情允许后续补）；B3a=不确定跳过。
+    if b3a and b3a != "不确定" and isinstance(answers.get("B3a_details"), dict):
+        details = answers["B3a_details"]
+        raw_ordinal = _scale_ordinal_from_raw(details.get("raw_value"))
+        if raw_ordinal is not None:
+            lo, hi = B3A_RANGE[b3a]
+            if not (lo <= raw_ordinal <= hi):
+                problems.append(
+                    f"B3a 档位与详情矛盾：勾选「{b3a}」但 B3a_details.raw_value="
+                    f"「{details.get('raw_value')}」应落更高档位——请回问归一（B-1）"
+                )
+
+    # ---- B-3 同口径 A4a×B3a 档位交叉（2026-09-23 新增；D-1 全球口径定稿后实施）----
+    # 仅当 B3a_details 与某法域 A4a_details 的统计口径四要素（metric/scope/period/unique）
+    # 完全一致（同口径）时才作档位比对；跨口径（如 B3a=global vs A4a=加州轮）维持
+    # 「不同统计口径不得直接比较」的设计性 leniency，仅输出提示行。
+    a4a_details = answers.get("A4a_details")
+    if (
+        b3a and b3a != "不确定"
+        and isinstance(answers.get("B3a_details"), dict)
+        and isinstance(a4a_details, dict)
+    ):
+        b3 = answers["B3a_details"]
+        b3_keys = ("metric", "scope", "period", "unique")
+        b3_sig = tuple(str(b3.get(k, "")).strip().lower() for k in b3_keys)
+        for juris, det in a4a_details.items():
+            if not isinstance(det, dict):
+                continue
+            a4_sig = tuple(str(det.get(k, "")).strip().lower() for k in b3_keys)
+            if a4_sig != b3_sig:
+                continue  # 跨口径：不硬性比较（设计性 leniency）
+            raw_ord = _scale_ordinal_from_raw(det.get("raw_value"))
+            if raw_ord is None:
+                continue
+            lo, hi = B3A_RANGE[b3a]
+            if not (lo <= raw_ord <= hi):
+                problems.append(
+                    f"B3a 档位与 {juris} A4a_details 同口径矛盾：B3a=「{b3a}」但 "
+                    f"A4a_details.{juris}.raw_value=「{det.get('raw_value')}」不落该档——"
+                    "请回问归一（B-3）"
+                )
+                break  # 同口径矛盾报一次即够，避免多法域重复报
+
+    # ---- B-2 metric 口径锁（V3-02 修复，2026-09-23 新增）----
+    # B3a 锚定法条 "monthly visitors or users"（§22757.1(d)）；downloads/累计注册类
+    # 口径冒充月活 → 答案级矛盾，要求回问归一。闭集外 metric 一律拦截。
+    if b3a and b3a != "不确定" and isinstance(answers.get("B3a_details"), dict):
+        metric_raw = str(answers["B3a_details"].get("metric", "")).strip()
+        metric = metric_raw.lower()
+        if metric and metric not in B3A_METRIC_ALLOWED:
+            problems.append(
+                f"B3a 口径锁：B3a_details.metric=「{metric_raw}」不在月度访客/用户闭集——"
+                "B3a 须以 monthly visitors or users 口径作答，请回问归一（V3-02）"
+            )
+
     return problems
+
+
+def cross_check_derived_keys(answers: dict) -> tuple[list[str], list[str]]:
+    """派生键一致性校验（B-11′）：返回 ``(errors, warnings)``。
+
+    三态处置（缺键／值不等／一致）＋**方向敏感**：
+
+    1. **缺键**——B12 双键仅在「卡应进入判定范围（``B5b_chat_status∈{yes,unknown}``）
+       且未落 B12 对象、亦无派生键」时计为失配（卡未触发时不落键属正常，不得报）；
+       ``B5b_chat_status`` 缺键不报（零消费方，消费端重算）。
+    2. **值不等**——按方向敏感处置：落盘值**更宽**（少报）→ error（须回问归一）；
+       落盘值**更严**（多报，如人工按产品语境取更严口径）→ warning 留痕、放行。
+       若取「严格相等即报错」，会误伤保守判定，与本 skill「不确定按最严口径」冲突。
+    3. **一致**——不报。
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    # ---- B5b_chat_status：值不等按方向报（缺键不报）----
+    chat_derived = derive_b5b_chat_status(answers)
+    chat_recorded = answers.get("B5b_chat_status")
+    if chat_recorded is not None and chat_derived is not None:
+        rec = str(chat_recorded).strip().lower()
+        if rec in _CHAT_STRICTNESS and rec != chat_derived:
+            detail = (
+                f"B5b_chat_status 落盘「{rec}」≠ 源答案重算「{chat_derived}」"
+            )
+            if _CHAT_STRICTNESS[rec] < _CHAT_STRICTNESS[chat_derived]:
+                errors.append(
+                    detail + "——落盘更宽（少报交互形态），请回问归一并覆盖落盘值（B-11′）"
+                )
+            else:
+                warnings.append(detail + "——落盘更严，按留痕放行（B-11′）")
+
+    # ---- B12 双键：缺键带前置条件 + 值不等按方向报 ----
+    card_in_play = b12_card_in_play(answers)
+    has_b12_object = isinstance(answers.get("B12"), dict)
+    for key, derive_fn in (
+        ("B12_companion_status", derive_b12_companion_status),
+        ("B12_human_misidentification_status", derive_b12_human_misidentification_status),
+    ):
+        recorded = answers.get(key)
+        if recorded is None:
+            # 前置条件（B-11′ 8.3③-(b)）：卡应进入判定范围却三者（B12 对象＋派生键）皆无
+            if card_in_play and not has_b12_object:
+                errors.append(
+                    f"{key} 缺键：B5b_chat_status 表明 B12 卡应已采集"
+                    f"（∈{{yes,unknown}}），但审计既未落 B12 对象、亦无派生键——"
+                    "请补采集 B12 卡并重算派生键（B-11′）"
+                )
+            continue
+        rec = str(recorded).strip().lower()
+        if rec not in _B12_STRICTNESS:
+            continue  # 值域由契约层（survey_io._ENUMS）把关，此处不重复
+        derived = derive_fn(answers)
+        if rec == derived:
+            continue
+        detail = f"{key} 落盘「{rec}」≠ 由 B12 客观事实重算「{derived}」"
+        if _B12_STRICTNESS[rec] < _B12_STRICTNESS[derived]:
+            errors.append(
+                detail + "——落盘更宽（少报义务），请回问归一（B-11′）"
+            )
+        else:
+            warnings.append(
+                detail + "——落盘更严，按留痕放行（B-11′；骨架据此取较严值）"
+            )
+    return errors, warnings
 
 
 # ---------------------------------------------------------------------------
@@ -383,6 +769,143 @@ DEMO = {
 }
 
 
+# ---------------------------------------------------------------------------
+# agent2（2026-09-28）：B13 闸门×角色×路径三向一致性 ＋ 4a 前置分流键存在性
+# ---------------------------------------------------------------------------
+# 背景：B13 新增广告活动总闸门（B13_gate）与 creator 路径 4a 前置分流
+# （B13.expressive_work_ad_present），B5b 对话形态新增同卡确认（chat_confirmed）。
+# 三者的门控关系此前只存在于问卷文字层，实测已证明文字层约束会被 agent 忽略，
+# 故按本 skill「答案级交叉校验」家族（B-11′／F-4／capability_modality 同层同码）代码化。
+
+def cross_check_b13_gate(answers: dict) -> list[str]:
+    """B13_gate × B13.role × creator/advertising_medium 路径 三向一致性。"""
+    problems: list[str] = []
+    gate = answers.get("B13_gate")
+    b13 = answers.get("B13")
+    if gate is None:
+        # 闸门未采集：仅当 B13 已落实质答案时才报（最小夹具兼容，同 B-11′ 缺键带前置）。
+        if isinstance(b13, dict) and set(b13) - {"role"}:
+            problems.append(
+                "B13_gate 缺键：B13 对象已含卡内后续字段，但广告活动总闸门未落盘——"
+                "请补采 B13 总闸门（agent2 前置分流第一问）"
+            )
+        return problems
+    if gate not in {"两类都有", "只自产广告", "只投放第三方", "都没有", "不确定"}:
+        return problems  # 值域由契约层（survey_io._ENUMS）把关
+    role = b13.get("role") if isinstance(b13, dict) else None
+    creator_signals = set()
+    medium_signals = set()
+    if isinstance(b13, dict):
+        creator_signals = set(b13) & {
+            "commercial_advertisement", "genai_human_performance",
+            "identifiable_natural_person", "prominent_use", "expressive_work_ad_present",
+            "expressive_work", "use_consistent_within_work",
+            "translation_only", "accessibility_only",
+        }
+        medium_signals = set(b13) & {"court_order_status"}
+    if gate == "都没有":
+        if role not in (None, "none") or creator_signals or medium_signals:
+            problems.append(
+                "B13_gate=「都没有」但 B13 存在角色或卡内后续答案——矛盾：闸门已终止广告模块，"
+                "不应再有 creator/advertising_medium 路径答案；请回问澄清（总闸门答错？或误采后续？）"
+            )
+        return problems
+    if role is None:
+        problems.append(
+            "B13_gate≠「都没有」但 B13.role 缺键——闸门表明存在广告活动，"
+            "请补采 B13 入口角色题"
+        )
+        return problems
+    if gate == "只投放第三方" and creator_signals:
+        problems.append(
+            "B13_gate=「只投放第三方广告」但 B13 含 creator 路径字段——矛盾："
+            "闸门表明不自制广告，不应有创作者路径答案；请回问澄清"
+        )
+    if gate == "只自产广告" and medium_signals:
+        problems.append(
+            "B13_gate=「只自己制作并发布广告」但 B13 含广告媒介路径字段——矛盾："
+            "闸门表明不投放第三方广告，不应有媒介路径答案；请回问澄清"
+        )
+    return problems
+
+
+def cross_check_b13_expressive_work_gate(answers: dict) -> list[str]:
+    """4a 前置分流（expressive_work_ad_present）× (d)(4) 两键存在性。
+
+    结构层（survey_io）只拦「4a=no 但两键落盘」的直接矛盾；本函数补齐
+    跨键完整性方向：4a=yes/unknown 时 expressive_work 必须采集；
+    4a=yes 且 expressive_work=no 时 use_consistent_within_work 不得落键
+    （既有「第5题答否→第6题不问」规则的机检化）。
+    """
+    problems: list[str] = []
+    b13 = answers.get("B13")
+    if not isinstance(b13, dict):
+        return problems
+    role = b13.get("role")
+    if role not in {"creator", "both"}:
+        return problems
+    gate_present = b13.get("expressive_work_ad_present")
+    if gate_present is None:
+        creator_answered = bool(
+            set(b13) & {
+                "commercial_advertisement", "genai_human_performance",
+                "identifiable_natural_person", "prominent_use",
+            }
+        )
+        if creator_answered:
+            problems.append(
+                "B13.expressive_work_ad_present 缺键：creator 路径已采集实质答案，"
+                "但 4a 作品广告前置分流未落盘——请补采 4a（agent2 前置分流）"
+            )
+        return problems
+    ew = b13.get("expressive_work")
+    ucw = b13.get("use_consistent_within_work")
+    if gate_present == "no" and (ew is not None or ucw is not None):
+        problems.append(
+            "B13.expressive_work_ad_present=no 但 (d)(4) 两键已落盘——矛盾："
+            "无作品广告则例外要件不采集；请回问澄清（4a 答错？或误采 5/6 题？）"
+        )
+    if gate_present in {"yes", "unknown"} and ew is None:
+        problems.append(
+            "B13.expressive_work_ad_present=yes/unknown 但 expressive_work 缺键——"
+            "4a 表明存在作品广告，请补采第 5 题（表现性作品确认）"
+        )
+        return problems
+    if gate_present == "yes" and ew == "no" and ucw is not None:
+        problems.append(
+            "B13.expressive_work=no（第 5 题答否）但 use_consistent_within_work 已落盘——"
+            "矛盾：第 5 题答否时第 6 题不问；请回问澄清"
+        )
+    return problems
+
+
+def cross_check_chat_confirmation(answers: dict) -> list[str]:
+    """B5b 勾选对话形态 × chat_confirmed 确认记录（agent2，2026-09-28）。
+
+    仅报「勾选了对话形态但无确认记录」；确认后的派生一致性由
+    ``cross_check_derived_keys`` 的方向敏感校验承载（本函数不重复）。
+    """
+    problems: list[str] = []
+    if not _a6_has(answers, "加州"):
+        return problems
+    raw = answers.get("B5b")
+    if not isinstance(raw, list):
+        return problems
+    has_chat_tick = any(
+        any(token in str(item) for token in ("聊天机器人", "智能助手", "客服机器人"))
+        for item in raw
+    )
+    if not has_chat_tick:
+        return problems
+    if answers.get("chat_confirmed") is None:
+        problems.append(
+            "B5b 勾选了对话形态但 chat_confirmed 缺键——对话式功能存在性须同卡显式确认"
+            "（确实有／没有（此前误选）／不确定），未经确认 chat_status 只能落 unknown；"
+            "请补采确认问（agent2 对话功能前置确认）"
+        )
+    return problems
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="B 组触发引擎与答案级交叉校验")
     parser.add_argument("survey", nargs="?", help="survey_audit.json（结构化问卷答案）")
@@ -409,6 +932,11 @@ def main(argv: list[str] | None = None) -> int:
 
     problems = cross_check_scale(answers)
     problems += cross_check_capability_modality(answers)
+    problems += cross_check_b13_gate(answers)
+    problems += cross_check_b13_expressive_work_gate(answers)
+    problems += cross_check_chat_confirmation(answers)
+    derived_errors, derived_warnings = cross_check_derived_keys(answers)
+    problems += derived_errors
 
     keys = survey_io.recognised_keys(answers)
     print(f"已识别答案键：{len(keys)} 个（{', '.join(keys) if keys else '无'}）")
@@ -416,6 +944,10 @@ def main(argv: list[str] | None = None) -> int:
     for row in TRIGGER_TABLE:
         mark = "触发" if row["id"] in triggered else "不触发"
         print(f"  [{mark}] {row['id']:<8} <- {row['desc']}")
+    if derived_warnings:
+        print("派生键留痕（按方向敏感放行，不计入失败）：")
+        for w in derived_warnings:
+            print(f"  [~] {w}")
     if problems:
         print("交叉校验：")
         for p in problems:

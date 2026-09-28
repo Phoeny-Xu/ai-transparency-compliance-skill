@@ -70,6 +70,10 @@
 | --- | --- | --- |
 | covered provider | 受管辖的提供者 | 〔通行〕§22757.1(d)；用户提供译文作"受管辖的提供者" |
 | large online platform | 大型网络平台 | 〔通行〕§22757.3.1；加州演进文章 x3 译"大型网络平台"，取此（非"大型在线平台"） |
+| social media platform | 社交媒体平台 | 〔通行〕§22757.1(i)(1)〔SB 1000〕/§22757.1(h)(1)〔现行法〕；四类封闭列举之一（定义、排除与门槛见 `ca-rules.md`，本表只定名） |
+| file sharing platform | 文件分享平台 | 〔通行〕§22757.1(i)(1)〔SB 1000〕/§22757.1(h)(1)〔现行法〕；同上 |
+| mass messaging platform | 群发消息平台 | 〔通行〕§22757.1(i)(1)、(j)〔SB 1000〕/§22757.1(h)(1)、(k)〔现行法〕；**统一译「群发消息平台」，禁「大规模消息平台」**（同源异译） |
+| stand-alone search engine | 独立搜索引擎 | 〔通行〕§22757.1(i)(1)〔SB 1000〕/§22757.1(h)(1)〔现行法〕；**官方英文为 `stand-alone search engine`**（两份 CA 原件均无 "independent search engine"） |
 | GenAI hosting platform | 生成式人工智能系统托管平台 | 〔通行〕§22757.1(g)；演进文章作"托管生成式人工智能系统的平台" |
 | generative AI system | 生成式人工智能系统 | 〔法定术语〕§22757.1 |
 | synthetic content | 合成内容 | 〔通行〕§22757.1(f) |
@@ -88,6 +92,12 @@
 | clear and conspicuous | 明确且显著 | 〔通行〕§22757.3 |
 | created or altered, except by minor modification | 创作或修改（轻微修改除外） | 〔法定术语〕§22757.2(a)(1)／§22757.3(a)〔SB 1000 Enrolled〕；「轻微修改 minor modification」定义见 §22757.1(l)〔SB 1000 新增〕。**现行法（SB 942 原版 §22757.2(a)(1)）仅作 "created or altered"，无「轻微修改除外」限定**——引现行法文本时不得带入该限定 |
 | Attorney General | 检察长 | 〔法定术语〕§22757.4 |
+| companion chatbot | 陪伴型聊天机器人 | 〔法定术语〕B&P Code §22601；不得泛化为所有聊天机器人 |
+| companion chatbot platform | 陪伴型聊天机器人平台 | 〔法定术语〕§22601(c) |
+| operator | 运营者 | 〔法定术语〕陪伴型聊天机器人规则中指向加州用户提供相应平台/机器人的人；按具体法案条文核验 |
+| synthetic performer | 合成表演者 | 〔法定术语〕§17610(a)(6)；要求不能识别为任何具体自然人 |
+| advertising medium | 广告媒介 | 〔法定术语〕§17610(a)(2)；不含无法移除、禁止访问或停止传播广告的人/实体 |
+| clear and conspicuous disclosure | 明确且显著的披露 | 〔法定术语〕§17610(a)(3)；与CAITA的显式披露不是同一义务 |
 
 ## 三、中国（深度合成规定 / 暂行办法 / 标识办法 / GB 45438-2025）
 
@@ -132,4 +142,4 @@
 3. **公共利益文本**：published text / text published on matters of public interest→有关公共利益事项而发布的文本（Art. 50(4) deployer 义务对象）。
 4. **AI生成或操纵→AI生成或篡改**：双语解析统一"AI生成或篡改（AI-generated or manipulated）"。
 5. **新增术语（双语解析高频词）**：标记 marking、标注 labelling、检测 detect、来源信息 provenance information（与加州来源数据/中国溯源信息分流）、个人来源数据 personal provenance data（加州）、可靠性 reliability、互操作性 interoperability、有效性 effectiveness、下游提供者 downstream provider、人工审核 human review、编辑控制 editorial control、披露 disclosure。
-6. **加州专属更正**：large online platform→大型网络平台、capture device→采集设备（非摄录设备）、provenance data→来源数据（非溯源数据）。
+6. **加州专属更正**：large online platform→大型网络平台、capture device→采集设备（非摄录设备）、provenance data→来源数据（非溯源数据）、mass messaging platform→群发消息平台（**禁「大规模消息平台」**）、stand-alone search engine→独立搜索引擎（官方英文非 "independent search engine"）。
