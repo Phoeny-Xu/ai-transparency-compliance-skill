@@ -34,6 +34,19 @@ RECOMMENDATION_MARKER_RE = re.compile(
     r"<!--\s*cop:recommendation\s+theme=(?P<theme>[^\s]+)\s+duties=(?P<duties>[^\s>]*)\s*-->",
     re.I,
 )
+FOOTNOTE_DEF_RE = re.compile(r"^\[\^(?P<label>[^\]]+)\]:\s*(?P<body>.+)$", re.MULTILINE)
+VISIBLE_MEASURE_FIELDS = {
+    "层级": re.compile(r"(?:^|\n)\s*-\s*\*\*层级\*\*\s*[：:]"),
+    "要求内容": re.compile(r"(?:^|\n)\s*-\s*\*\*要求内容\*\*\s*[：:]"),
+    "技术与操作要点": re.compile(
+        r"(?:^|\n)\s*-\s*\*\*技术(?:与|/)?操作要点\*\*\s*[：:]"
+    ),
+}
+RECOMMENDATION_FIELDS = {
+    name: re.compile(rf"(?:^|\n)\s*-\s*\*\*?{name}\*\*?\s*[：:]")
+    for name in ("覆盖义务", "控制目标", "实施动作", "责任分工", "优先级与节点", "验收证据")
+}
+VAGUE_ACTION_RE = re.compile(r"持续关注|加强管理|完善机制|做好合规|及时跟进|强化意识")
 
 
 def read_json(path: Path) -> dict:
@@ -74,6 +87,43 @@ def report_markers(text: str) -> tuple[dict[str, set[str]], dict[str, set[str]]]
     for match in RECOMMENDATION_MARKER_RE.finditer(text):
         recommendations.setdefault(match.group("theme"), set()).update(_csv(match.group("duties")))
     return items, recommendations
+
+
+def _preceding_block(text: str, position: int, *, heading: bool = False) -> str:
+    if heading:
+        starts = [match.start() for match in re.finditer(r"(?m)^###\s+", text[:position])]
+        start = starts[-1] if starts else 0
+    else:
+        matches = list(ITEM_MARKER_RE.finditer(text, 0, position))
+        start = matches[-1].end() if matches else 0
+    return text[start:position]
+
+
+def _footnote_definitions(text: str) -> dict[str, str]:
+    return {match.group("label"): match.group("body").strip() for match in FOOTNOTE_DEF_RE.finditer(text)}
+
+
+def _source_matches(record: dict, source: str) -> bool:
+    item_id = str(record.get("id", ""))
+    match = re.fullmatch(r"S([12])-C(\d+)-M([\d.]+)", item_id)
+    if not match:
+        return False
+    section, commitment, measure = match.groups()
+    if not re.search(rf"Section\s*{section}(?!\d)|第\s*{section}\s*部分", source, re.I):
+        return False
+    if not re.search(rf"(?:Commitment|承诺)\s*C?{commitment}(?!\d)", source, re.I):
+        return False
+    if not re.search(rf"(?:Measure|措施)\s*M?{re.escape(measure)}(?![\d.])", source, re.I):
+        return False
+    compact = re.sub(r"\s+", "", source).replace("（", "(").replace("）", ")")
+    for anchor in record.get("art50_anchor", []):
+        paragraph = re.search(r"50\((\d+)\)", str(anchor))
+        if paragraph and not (
+            f"50({paragraph.group(1)})" in compact
+            or f"第50条第{paragraph.group(1)}款" in compact
+        ):
+            return False
+    return True
 
 
 def validate(
@@ -144,6 +194,19 @@ def validate(
         errors.append("COV-05 items 含非 relevant_sections 规则或未知规则：" + "、".join(extra))
 
     item_markers, recommendation_markers = report_markers(report_text)
+    item_marker_matches = list(ITEM_MARKER_RE.finditer(report_text))
+    recommendation_marker_matches = list(RECOMMENDATION_MARKER_RE.finditer(report_text))
+    footnotes = _footnote_definitions(report_text)
+    item_blocks: dict[str, list[str]] = {}
+    for match in item_marker_matches:
+        item_blocks.setdefault(match.group("id"), []).append(
+            _preceding_block(report_text, match.start())
+        )
+    recommendation_blocks: dict[str, list[str]] = {}
+    for match in recommendation_marker_matches:
+        recommendation_blocks.setdefault(match.group("theme"), []).append(
+            _preceding_block(report_text, match.start(), heading=True)
+        )
     duties_to_themes: dict[str, set[str]] = {}
     for theme, duties in recommendation_markers.items():
         for duty in duties:
@@ -160,6 +223,32 @@ def validate(
             errors.append(f"COV-07 {item_id} 的 {classification} 状态缺少理由")
         if classification not in ACTIVE:
             continue
+
+        blocks = item_blocks.get(item_id, [])
+        if not blocks:
+            errors.append(f"COV-15 {item_id} 缺少可见 Measure 块或 cop:item 标记")
+        else:
+            block = blocks[0]
+            absent_fields = [name for name, pattern in VISIBLE_MEASURE_FIELDS.items() if not pattern.search(block)]
+            if absent_fields:
+                errors.append(f"COV-15 {item_id} 可见字段缺失：" + "、".join(absent_fields))
+
+            references = [
+                label for label in re.findall(r"\[\^([^\]]+)\]", block)
+                if label.startswith(("cop_src_", "cop_s1_", "cop_s2_"))
+            ]
+            if not references:
+                errors.append(f"COV-16 {item_id} 缺少专用 CoP 来源脚注")
+            elif not any(label in footnotes and _source_matches(record, footnotes[label]) for label in references):
+                errors.append(f"COV-16 {item_id} 的 CoP 来源脚注与 Section/Commitment/Measure/Art. 50 锚点不匹配")
+
+            # 2026-09-27 修：原 `r"\*\*M([\d.]+)\b"` 在「**M2.1内部合规流程**」这类
+            # 排版归一化后的写法上失效——`\b` 要求 "1" 后是非 word 字符，而中文属 \w，
+            # 回溯后只捕到 "2."，误报 COV-18「标题错位为 M2.」。改为取完整点分编号。
+            title_measure = re.search(r"\*\*M(\d+(?:\.\d+)*)", block)
+            expected_measure = item_id.rsplit("M", 1)[-1]
+            if title_measure and title_measure.group(1) != expected_measure:
+                errors.append(f"COV-18 {item_id} 的可见 Measure 标题错位为 M{title_measure.group(1)}")
 
         theme = item.get("recommendation_theme") or record.get("recommendation_theme")
         if not isinstance(theme, str) or not theme.strip():
@@ -194,6 +283,68 @@ def validate(
             errors.append(f"COV-12 {duty_id} 缺少 recommendation_theme")
         elif theme not in duties_to_themes.get(duty_id, set()):
             errors.append(f"COV-13 已触发义务 {duty_id} 未映射到落地建议主题 {theme}")
+
+    for item_id, blocks in sorted(item_blocks.items()):
+        if len(blocks) > 1:
+            errors.append(f"COV-18 同一 Measure 重复出现：{item_id}")
+
+    visible_body = FOOTNOTE_DEF_RE.sub("", report_text)
+    visible_body = re.sub(r"<!--.*?-->", "", visible_body, flags=re.S)
+    # 2026-09-27 修：原 `CoP\b` 在「来源：CoP措施」这类中英紧邻写法上不成立
+    # （中文属 \w，`\b` 失败）→ 该禁用句在排版归一化后静默漏检。改为只排除后接拉丁数字的情形。
+    if re.search(r"来源\s*[：:]\s*(?:《?AI生成内容透明度行为准则|CoP(?![A-Za-z0-9])|准则第)", visible_body, re.I):
+        errors.append("COV-17 正文残留 CoP 来源句；来源应由专用脚注承载")
+
+    registered_themes = {
+        str(record.get("recommendation_theme"))
+        for record in records
+        if isinstance(record, dict) and record.get("recommendation_theme")
+    }
+    registered_themes.update(
+        str(obligation.get("recommendation_theme"))
+        for obligation in obligations
+        if isinstance(obligation, dict) and obligation.get("recommendation_theme")
+    )
+    for theme, blocks in sorted(recommendation_blocks.items()):
+        if theme not in registered_themes:
+            errors.append(f"COV-21 未注册的落地建议主题键：{theme}")
+        if len(blocks) > 1:
+            errors.append(f"COV-21 同一主要建议主题重复登记：{theme}")
+        block = blocks[0]
+        absent = [name for name, pattern in RECOMMENDATION_FIELDS.items() if not pattern.search(block)]
+        if absent:
+            errors.append(f"COV-19 建议主题 {theme} 缺少执行字段：" + "、".join(absent))
+        action_match = re.search(
+            r"(?:^|\n)\s*-\s*\*\*?实施动作\*\*?\s*[：:](.*?)(?=\n\s*-\s*\*\*|\Z)",
+            block,
+            re.S,
+        )
+        if action_match:
+            action_text = action_match.group(1).strip()
+            if VAGUE_ACTION_RE.search(action_text) and len(re.sub(r"\s+", "", action_text)) <= 40:
+                warnings.append(f"COV-W-01 建议主题 {theme} 的实施动作疑似空泛，需人工复核")
+
+    conditional_pairs: list[tuple[str, str]] = []
+    for item_id, item in case_by_id.items():
+        if item.get("classification") == "conditional":
+            record = registry_by_id.get(item_id, {})
+            theme = item.get("recommendation_theme") or record.get("recommendation_theme")
+            if isinstance(theme, str):
+                conditional_pairs.append((item_id, theme))
+    for obligation in obligations:
+        if isinstance(obligation, dict) and obligation.get("classification") == "conditional":
+            conditional_pairs.append((str(obligation.get("id")), str(obligation.get("recommendation_theme", ""))))
+    for duty_id, theme in conditional_pairs:
+        blocks = recommendation_blocks.get(theme, [])
+        block = blocks[0] if blocks else ""
+        has_dependency = bool(re.search(r"\*\*?条件与依赖\*\*?\s*[：:]", block))
+        has_fact_check = bool(re.search(r"核验|核实|确认|查明|验证|盘点", block))
+        if not has_dependency or not has_fact_check:
+            errors.append(f"COV-20 条件式义务 {duty_id} 的主题 {theme} 缺少条件与依赖或事实核验动作")
+
+    for duty_id, themes in sorted(duties_to_themes.items()):
+        if len(themes) > 1:
+            errors.append(f"COV-21 义务 {duty_id} 登记了多个主要主题：" + "、".join(sorted(themes)))
 
     if audit_path is not None:
         try:

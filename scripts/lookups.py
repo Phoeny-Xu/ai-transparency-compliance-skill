@@ -170,15 +170,19 @@ def ca_lop_decision(
 SB1000_BASELINE = {
     "待签署": {
         "baseline": "SB942_AB853",
+        "readable": "SB 942 经 AB 853 修正（现行法）",
         "annotation": "SB 1000 修订点集中「前瞻变更提示」块、不散落正文；超期 2026-09-30 自动成为法律即生效",
     },
     "已签署": {
         "baseline": "SB1000",
+        "readable": "SB 1000（生效版）",
         "annotation": "SB 1000 为紧急法案，一经签署立即生效；全部义务改以 SB 1000 生效版为基准",
     },
-    "否决": {"baseline": "SB942_AB853", "annotation": "SB 1000 被否决，维持 SB 942 经 AB 853 基准"},
+    "否决": {"baseline": "SB942_AB853", "readable": "SB 942 经 AB 853 修正（现行法）",
+             "annotation": "SB 1000 被否决，维持 SB 942 经 AB 853 基准"},
     "超期自动生效": {
         "baseline": "SB1000",
+        "readable": "SB 1000（生效版）",
         "annotation": "州长未在期限内行动、依法自动成为法律，即时生效",
     },
 }
@@ -195,6 +199,65 @@ def sb1000_baseline(status: str) -> dict:
     out = dict(SB1000_BASELINE[key])
     out["ok"] = True
     return out
+
+
+# ---------------------------------------------------------------------------
+# 4. 加州场景规则条款级时间状态
+# ---------------------------------------------------------------------------
+
+AB1609_STATUSES = frozenset({
+    "pending_governor", "signed_not_effective", "effective", "vetoed",
+    "became_law_without_signature",
+})
+
+
+def ca_scenario_timeline(session_date: str) -> dict:
+    """返回SB 1119/SB 1050条款级状态；空窗期不合并成总布尔值。"""
+    try:
+        current = date.fromisoformat(str(session_date).strip())
+    except ValueError:
+        return {"ok": False, "annotation": "日期无法识别，应使用YYYY-MM-DD"}
+    jan = date(2027, 1, 1)
+    jul = date(2027, 7, 1)
+    if current < jan:
+        sb1119 = {
+            "section_22602_amendment": "not_effective",
+            "section_21811": "not_effective",
+            "sections_21812_21813": "not_effective",
+        }
+        sb1050 = "signed_not_effective"
+    elif current < jul:
+        sb1119 = {
+            "section_22602_amendment": "effective",
+            "section_21811": "effective",
+            "sections_21812_21813": "not_operative",
+        }
+        sb1050 = "effective"
+    else:
+        sb1119 = {
+            "section_22602_amendment": "effective",
+            "section_21811": "effective",
+            "sections_21812_21813": "operative",
+        }
+        sb1050 = "effective"
+    return {"ok": True, "sb1119": sb1119, "sb1050": sb1050}
+
+
+def ab1609_baseline(status: str) -> dict:
+    key = str(status or "").strip()
+    if key not in AB1609_STATUSES:
+        return {"ok": False, "effective": False, "annotation": "AB1609状态未识别"}
+    return {
+        "ok": True,
+        "effective": key == "effective",
+        "annotation": {
+            "pending_governor": "待州长处理，仅作前瞻监控",
+            "signed_not_effective": "已签署但尚未生效，仅作实施准备",
+            "effective": "已生效，可进入义务判定",
+            "vetoed": "已否决，不生成义务",
+            "became_law_without_signature": "未签署成法，仍须结合法定生效日判断；不得直接视为已生效",
+        }[key],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +283,11 @@ FORWARD_NODES: tuple[tuple[str, str, str], ...] = (
     ),
     (
         "2027-01-01",
+        "加州 SB 1119 对 §22602 的修订及 §21811 生效；SB 1050 合成表演者广告规则生效",
+        "加州陪伴型聊天机器人运营者、广告创作者与广告媒介",
+    ),
+    (
+        "2027-01-01",
         "加州 large online platform、GenAI hosting platform 义务生效",
         "加州平台类主体",
     ),
@@ -227,6 +295,11 @@ FORWARD_NODES: tuple[tuple[str, str, str], ...] = (
         "2027-02-02",
         "欧盟行为准则 Measure 3.4 水印检测互操作最低方案落地",
         "欧盟 provider（准则签署者）",
+    ),
+    (
+        "2027-07-01",
+        "加州 SB 1119 的 §§21812、21812.5、21813 开始施行",
+        "允许儿童继续使用的陪伴型聊天机器人运营者",
     ),
     (
         "2028-01-01",

@@ -227,6 +227,30 @@ RULES: list[BanRule] = [
         code="W-20",
         basis="glossary §一：marking 译「标记」，「标识」限中国语境",
     ),
+    BanRule(
+        # agent2（2026-09-28）：「深度伪造者」把 deep fake（内容属性）偷换为行为人，
+        # 属术语错误（Art. 50(4) 规制的是 content constituting a deep fake）；
+        # 问卷题干曾因此带错字并流入报告。W-20 级（批注节豁免、报头声明区豁免）。
+        pattern=re.compile(r"深度伪造者"),
+        display="深度伪造者",
+        better="深度伪造的内容",
+        code="W-20",
+        basis="agent2 修订批次：Art. 50(4) deep fake 系内容属性，不得人称化为「深度伪造者」",
+    ),
+    BanRule(
+        # agent2（2026-09-28）：内部落盘键不得进入交付物正文——
+        # 呈现层禁键（ui-landing-rules §6）的报告端兑底。只禁下划线形（内部键），
+        # 法定英文原文 "advertising medium"（空格形）不受影响；报头声明区与批注节豁免
+        # （批注本就允许出现问卷编号与审计键，与「正文去个性化」规则同构）。
+        pattern=re.compile(
+            r"(?<![\w/])(?:advertising_medium|B5b_chat_status|B13_gate|expressive_work_ad_present|"
+            r"use_consistent_within_work|B11_cop|B12_companion_status|B12_human_misidentification_status)(?![\w])"
+        ),
+        display="内部落盘键",
+        better="改用法律术语或业务活动描述（正文禁内部键，批注节可用）",
+        code="W-20",
+        basis="agent2 修订批次：落盘键名禁入呈现层与报告正文（ui-landing-rules §6）；正文去个性化（L5）",
+    ),
 ]
 
 # 同义并存（同一概念两种译法同时出现即报警）
@@ -237,6 +261,7 @@ PAIRS: list[tuple[str, str, str]] = [
     ("采集设备", "摄录设备", "glossary §二：取「采集设备」"),
     ("隐式披露", "隐式标记", "glossary §二：本报告统一「隐式披露」"),
     ("显式披露", "显式标记", "glossary §二：本报告统一「显式披露」"),
+    ("群发消息平台", "大规模消息平台", "glossary §二：取「群发消息平台」（mass messaging platform）"),
 ]
 
 

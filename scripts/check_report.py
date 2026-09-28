@@ -77,6 +77,7 @@ CATALOG: list[tuple[str, str, str]] = [
     ("E-10", "E", "义务详述节每项含字段行（责任主体/生效适用/未合规后果，阶段4硬性要求1）"),
     ("E-11", "E", "义务详述节每项含「证据等级」字段（阶段4硬性要求3）"),
     ("E-12", "E", "模式B 小节存在性：欧盟各主体「成文法义务与行为准则义务的衔接」／对比第七节「相同点·不同点·共通要求·单法域特别规定」（㉑）"),
+    ("E-13", "E", "加州场景法规逐法独立登记效力状态（正文引用一部，效力核验表即单列一行）"),
     ("W-01", "W", "斜体（`*…*`）不用于承载警示（报告格式铁律）"),
     ("W-02", "W", "脚注非概括性（不以「含」「等」起止）"),
     ("W-03", "W", "正文义务措辞不混用「必须」（L3 应用「应当」/「建议」）"),
@@ -90,6 +91,7 @@ CATALOG: list[tuple[str, str, str]] = [
     ("W-11", "W", "范围声明与 modeA-questionnaire 模板高度一致（⑧）"),
     ("W-12", "W", "CoP 已展开但按 Commitment（C1–C4）分组（⑭）"),
     ("W-14", "W", "效力核验记录覆盖率：正文援引法规数 ≤ 效力表行数（L6「每部被引法规一行」；§条号族按条号主体归并为同一部法）"),
+
     ("W-15", "W", "模式A 报告含「义务详述」节（节整体缺失时 E-10/E-11/W-14 将全部静默跳过）"),
     ("W-16", "W", "正文无确定性推定措辞（④ 不确定项应以「若X则Y」呈现；假设节/批注节豁免；仅模式A）"),
     ("W-17", "W", "模式A 报告含「未覆盖维度与转介卡」段且条目≥1，条目须落指针库或标「需另行专项评估」（⑨）"),
@@ -98,6 +100,9 @@ CATALOG: list[tuple[str, str, str]] = [
     ("W-23", "W", "检查项前置信号未命中致本项未执行（E-12 模板判定／W-11 范围声明原文），须人工确认"),
     ("W-24", "W", "模式B 报告出现独立的 CoP 措施章节——CoP 应随欧盟义务就地展开，不得单独成节（⑭）"),
     ("W-25", "W", "模式B 报告出现模式A 专有语汇（画像事实／画像推断／用户答「不确定」）——modeB 跳过问卷、不针对具体产品（批注语义）"),
+    ("W-26", "W", "SB 1000 效力三方一致性：义务基准行 × 效力核验表 SB 1000 行 × 临近节点截止日（B-4，防 status 与正文错配）"),
+    ("W-27", "W", "CoP 签署范围差距提示：签署范围未覆盖适用角色对应 Section 时落地建议须含补签评估差距项（agent2，2026-09-28；启发式，无审计文件时跳过）"),
+    ("W-28", "W", "交付偏好一致性：报告实际语言/脚注形态与骨架配置注释一致；defaults_applied 非空时批注节须含「交付偏好默认采用记录」（agent2，2026-09-28）"),
     ("W-00", "W", "存在行内豁免（留痕提示）"),
 ]
 
@@ -247,6 +252,19 @@ MODE_A_RESIDUE_PATTERNS = (
     (re.compile(r"用户答\s*[「“\"]?\s*不确定"), "用户答「不确定」"),
 )
 
+# 加州场景法规彼此具有独立的主体、触发要件、日期与罚则。正文点名引用时，
+# 效力核验表必须逐法单列，不能用「加州相关法规」或 CAITA 一行笼统覆盖。
+CA_SCENARIO_LAWS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("BOT Act", re.compile(r"(?<![A-Za-z0-9])BOT\s+Act(?![A-Za-z0-9])|(?<![A-Za-z0-9])SB\s*1001(?![A-Za-z0-9])", re.I)),
+    ("SB 243", re.compile(r"(?<![A-Za-z0-9])SB\s*243(?![A-Za-z0-9])", re.I)),
+    ("SB 867", re.compile(r"(?<![A-Za-z0-9])SB\s*867(?![A-Za-z0-9])", re.I)),
+    ("SB 1119", re.compile(r"(?<![A-Za-z0-9])SB\s*1119(?![A-Za-z0-9])", re.I)),
+    ("SB 1050", re.compile(r"(?<![A-Za-z0-9])SB\s*1050(?![A-Za-z0-9])", re.I)),
+    ("SB 896", re.compile(r"(?<![A-Za-z0-9])SB\s*896(?![A-Za-z0-9])", re.I)),
+    ("AB 3030", re.compile(r"(?<![A-Za-z0-9])AB\s*3030(?![A-Za-z0-9])", re.I)),
+    ("AB 1609", re.compile(r"(?<![A-Za-z0-9])AB\s*1609(?![A-Za-z0-9])", re.I)),
+)
+
 
 # ---------------------------------------------------------------------------
 # 数据结构
@@ -385,6 +403,83 @@ def check_report(path: Path, jurisdictions: set[str], lang: str, mode: str, root
     in_fence = structure["in_fence"]
     annot_start = structure["annot_start"]
     findings: list[Finding] = []
+
+    # ---- W-28 交付偏好一致性（agent2，2026-09-28；仅模式A）----
+    # 骨架头部的 agent2-report-config 注释记录了报告语言、脚注形态与 defaults_applied。
+    # 实际 CLI 参数（--lang）与配置注释的语言不一致 → 提醒；defaults_applied 非空时，
+    # 批注节须含「交付偏好默认采用记录」条目（骨架已具名生成，缺项即为 agent 删除）。
+    # 前置信号：配置注释未命中（旧报告/手写报告）→ W-23 提醒，不硬报。
+    if mode == "A":
+        config_re = re.compile(
+            r"<!--\s*agent2-report-config:\s*language=(?P<lang>[^;]+);\s*"
+            r"footnote_original_text=(?P<foot>[^;]+);\s*"
+            r"defaults_applied=(?P<defaults>[^>]*?)\s*-->"
+        )
+        config_match = config_re.search(text)
+        if config_match:
+            config_lang = config_match.group("lang").strip()
+            defaults_raw = config_match.group("defaults").strip()
+            # agent2 修复：骨架对「无默认项」写 defaults_applied=none，须视为空集，不得触发留痕检查。
+            defaults_list = [d.strip() for d in defaults_raw.split(",") if d.strip() and d.strip() != "none"]
+            # agent2 修复：--lang（zh/zh-en）与配置键（纯中文/中英双语）用映射比对，不做字面相等。
+            cli_lang = "中英双语" if lang == "zh-en" else "纯中文"
+            if config_lang != cli_lang:
+                findings.append(Finding(
+                    "W-28", 1,
+                    f"交付偏好一致性：骨架配置 language={config_lang} 与本次校验参数 --lang {lang} "
+                    "不一致——请核对报告实际语言（双语须段段对应，中/单语须无成段英文对照）",
+                ))
+            if defaults_list:
+                has_default_record = annot_start is not None and any(
+                    "交付偏好默认采用记录" in line for line in lines[annot_start:]
+                )
+                if not has_default_record:
+                    findings.append(Finding(
+                        "W-28", annot_start + 1 if annot_start is not None else 1,
+                        f"交付偏好默认采用记录缺失：defaults_applied={defaults_raw}（骨架已在批注节 §4 具名生成该条目，" 
+                        "缺失说明被删除）；默认执行须在批注节留痕后方可交付",
+                    ))
+            if "footnote_original_text=是" in text and lang != "zh-en":
+                # 脚注偏好=是时，报告应存在 CoP 之外的原文引文脚注（启发式：存在 [^开头的定义行且含条号引用符）。
+                # 判「无任何脚注定义」才报，避免对脚注格式细节误报。
+                if not any(re.match(r"\[\^[^\]]+\]:", line) for line in lines):
+                    findings.append(Finding(
+                        "W-28", 1,
+                        "交付偏好一致性：配置 footnote_original_text=是 但报告无任何脚注定义——"
+                        "脚注注明法条原文的偏好未落实",
+                    ))
+        else:
+            findings.append(Finding(
+                "W-23", 0,
+                "模式A 报告未命中 agent2-report-config 配置注释（旧报告或手工生成），"
+                "W-28 交付偏好一致性未执行，须人工确认报告语言与脚注偏好来源",
+            ))
+
+    # ---- W-27 CoP 签署范围差距提示（agent2，2026-09-28；仅模式A＋范围含欧盟）----
+    # 启发式：落地建议节须含「签署范围」类差距提示；无 CoP 签署事实（矩阵/审计）时跳过，
+    # 精确的 signatory×角色比对归 validate_cop_coverage --audit。
+    if mode == "A" and "EU" in jurisdictions:
+        rec_span = None
+        for idx, (i, level, htext) in enumerate(structure["headings"]):
+            if level == 2 and "落地建议" in htext:
+                end = len(lines)
+                for j, lv, _ in structure["headings"][idx + 1 :]:
+                    if lv <= level:
+                        end = j
+                        break
+                rec_span = (i, end)
+                break
+        if rec_span is not None:
+            rec_text = "\n".join(lines[rec_span[0] : rec_span[1]])
+            mentions_cop_section = bool(re.search(r"Section\s*[1212]|行为准则", rec_text))
+            has_gap_item = bool(re.search(r"签署范围差距|评估是否补签|补签.{0,12}Section", rec_text))
+            if mentions_cop_section and not has_gap_item:
+                findings.append(Finding(
+                    "W-27", rec_span[0] + 1,
+                    "落地建议涉 CoP Section 但未见「签署范围差距提示」（评估是否补签未覆盖 Section）——"
+                    "规则见 reporting-rules.md §一.8；若本次无签署差距（如两 Section 均已覆盖），"
+                    "请人工确认后豁免本条",
+                ))
 
     def in_body(i: int) -> bool:
         return (annot_start is None or i < annot_start) and not in_fence[i]
@@ -527,6 +622,81 @@ def check_report(path: Path, jurisdictions: set[str], lang: str, mode: str, root
             findings.append(
                 Finding("W-04", start + 1, "范围不含加州，效力核验节却出现 SB 1000 / leginfo 行，建议移除（对方 B9）")
             )
+
+        # ---- W-16 SB 1000 效力三方一致性（B-4，2026-09-23 新增）----
+        # 报告内部三方自洽：义务基准行 × 效力核验表 SB 1000 行 × 临近节点提示。
+        # 待签署期（截止 2026-09-30）：正文义务基准不得呈现为 SB 1000 生效版序号体系
+        # （§22757.2 修订版序号或「SB 1000 生效版」字样）；已签署/超期自动生效则反向。
+        if "CA" in jurisdictions and has_sb1000:
+            sb1000_row_says_pending = bool(
+                re.search(r"待签署|未签署|州长.{0,6}(签署|否决)|2026-09-30", seg)
+            )
+            sb1000_row_says_effective = bool(
+                re.search(r"已签署|立即生效|自动成为法律|已生效", seg)
+            )
+            # 义务基准行（全文找「**义务基准**」）
+            baseline_seg = "\n".join(
+                l for l in lines if "义务基准" in l
+            )
+            baseline_says_sb942 = "SB 942" in baseline_seg and "AB 853" in baseline_seg
+            baseline_says_sb1000 = bool(
+                re.search(r"义务基准[^\n]*SB ?1000", baseline_seg)
+            ) and not baseline_says_sb942
+            if sb1000_row_says_pending and not sb1000_row_says_effective and baseline_says_sb1000:
+                findings.append(
+                    Finding(
+                        "W-26", start + 1,
+                        "SB 1000 效力三方不一致：效力核验表为「待签署」口径，但义务基准行呈现为 SB 1000 生效版——"
+                        "待签署期基准应为 SB 942 经 AB 853 修正（P2-1 防复发）",
+                    )
+                )
+            elif sb1000_row_says_effective and not sb1000_row_says_pending and baseline_says_sb942:
+                findings.append(
+                    Finding(
+                        "W-26", start + 1,
+                        "SB 1000 效力三方不一致：效力核验表为「已签署/生效」口径，但义务基准行仍为 SB 942 经 AB 853——"
+                        "签署后应切换 SB 1000 生效版基准（P2-1 防复发）",
+                    )
+                )
+
+        # ---- E-13 加州场景法规逐法效力行 ----
+        if "CA" in jurisdictions:
+            body_end = annot_start if annot_start is not None else len(lines)
+            idx_lines = [
+                (i, line)
+                for i, line in enumerate(lines[:body_end])
+                if not (start <= i < end) and not in_fence[i]
+            ]
+            body_text_without_validity = re.sub(
+                r"<!--[\s\S]*?-->", " ", "\n".join(line for _, line in idx_lines)
+            )
+            missing_scenario_rows = [
+                name
+                for name, rx in CA_SCENARIO_LAWS
+                if rx.search(body_text_without_validity) and not rx.search(seg)
+            ]
+            if missing_scenario_rows:
+                # F-3（2026-09-23）：Finding 行号由「效力核验节首行（start+1）」改锚
+                # **正文命中行**——行内 `<!-- lint:ignore E-13 -->` 才可定向到具体区分性
+                # 提及（如「不适用 AB 3030」），不必对整节豁免而放弃防漏登记护栏。
+                # 扫描口径（含注释剥离）不变，只补行号定位；命中行取各缺失法名中最早者。
+                laws_by_name = dict(CA_SCENARIO_LAWS)
+                hit_lines = []
+                for name in missing_scenario_rows:
+                    rx = laws_by_name[name]
+                    for i, line in idx_lines:
+                        if rx.search(re.sub(r"<!--[\s\S]*?-->", " ", line)):
+                            hit_lines.append(i + 1)
+                            break
+                anchor_line = min(hit_lines) if hit_lines else start + 1
+                findings.append(
+                    Finding(
+                        "E-13",
+                        anchor_line,
+                        "正文引用加州场景法规，但效力核验节未逐法单列："
+                        + "、".join(missing_scenario_rows),
+                    )
+                )
 
     # ---- E-10 / E-11 / W-15 义务详述节字段化（阶段4 硬性要求1/3）----
     # 背景：阶段4 硬性要求 1/3 明令每项义务含「责任主体/生效适用/未合规后果」与「证据等级」，
@@ -920,7 +1090,13 @@ def check_report(path: Path, jurisdictions: set[str], lang: str, mode: str, root
         if len(rows) > 1:
             na = sum(1 for r in rows if "不适用" in r)
             ratio = na / len(rows)
-            if ratio > 0.6:
+            # B-9（2026-09-23）：义务总览的「不适用」自然率随**范围内法域数减少**而升高
+            # （法域越少，他法域的整列/整格 N/A 在行内出现的概率越大）。两端口径已定：
+            # 3 法域=0.6（原值）、1 法域=0.85（案例31 类单法域案）。2 法域按两点线性插值
+            # 取 0.725——不另立无据阈值，只做端点间插值；超出 1–3 一律按邻近端点处理。
+            in_scope = max(1, min(3, len(jurisdictions)))
+            w06_threshold = 0.6 + 0.25 * (3 - in_scope) / 2
+            if ratio > w06_threshold:
                 findings.append(
                     Finding(
                         "W-06",

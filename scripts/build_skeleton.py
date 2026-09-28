@@ -26,8 +26,8 @@
 ------------------
 骨架是**内容待填**的中间产物。对骨架跑 `check_report.py` 时，**E-02（未找到「范围声明」）与
 W-17（未找到「未覆盖维度与转介卡」段）属预期**（由 agent 成稿时补齐，其原文在报告模板中）。
-但 **E-03（问卷编号/内部术语）、E-04（正文 blockquote）、W-14（援引法规多于效力表行）、
-W-19（批注节缺「回填确认记录」）必须为零**——前三类由生成器自身文字/格式产生，第四类靠
+但 **E-03（问卷编号/内部术语）、E-04（正文 blockquote）、E-13（场景法规缺独立效力行）、
+W-14（援引法规多于效力表行）、W-19（批注节缺「回填确认记录」）必须为零**——前四类由生成器自身文字/格式产生，第五类靠
 本脚本给出具名占位（§4）保障；它们若报警，属本脚本缺陷而非报告缺陷——否则「对骨架跑机检」
 者会把脚本问题误当成稿问题。回归见 `tests/test_scripts.py::BuildSkeletonTests`。
 
@@ -43,12 +43,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from lookups import forward_nodes_within, sb1000_baseline  # noqa: E402
+from lookups import ab1609_baseline, forward_nodes_within, sb1000_baseline  # noqa: E402
 from resolve_triggers import (
     _a3_generates,
+    cross_check_b13_expressive_work_gate,
+    cross_check_b13_gate,
     cross_check_capability_modality,
+    cross_check_chat_confirmation,
+    cross_check_derived_keys,
     cross_check_scale,
     china_connection_points,
+    derive_b5b_chat_status,
+    resolve_b12_companion_status,
+    resolve_b12_human_misidentification_status,
 )  # noqa: E402
 from survey_io import AuditFormatError, load_audit  # noqa: E402
 
@@ -94,6 +101,27 @@ B10_VALUES = [
     "尚未实施",
 ]
 
+B10_CHAT_VALUES = [
+    "AI交互身份提示",
+    "未成年人适龄AI身份提示",
+    "长时间互动周期提示",
+]
+B10_AD_VALUES = ["合成表演者广告披露"]
+
+
+def relevant_b10_values(answers: dict) -> list[str]:
+    """只返回已触发模块对应的现状盘点值，避免未适用措施进入差距表。"""
+    values = list(B10_VALUES)
+    # B-11′：权威值由代码重算（卡未进入判定 → not_triggered），不直读落盘派生键
+    if resolve_b12_companion_status(answers) in {"yes", "conditional"}:
+        values.extend(B10_CHAT_VALUES)
+    b13 = answers.get("B13")
+    if isinstance(b13, dict) and b13.get("role") in {
+        "creator", "advertising_medium", "both", "unknown"
+    }:
+        values.extend(B10_AD_VALUES)
+    return values
+
 # 各法域效力核验记录表的法规行（机械化，来自各自规则库覆盖范围）
 VERIFY_ROWS = {
     "中国大陆": [
@@ -105,6 +133,7 @@ VERIFY_ROWS = {
     "欧盟": [
         ("Regulation (EU) 2024/1689（AI Act）Art. 50", "现行有效"),
         ("Digital Omnibus Reg. (EU) 2026/1744", "已生效（2026-07-27）"),
+        ("《AI生成内容透明度行为准则》（CoP）", "非约束性准则；按报告日核验版本与签署状态"),
     ],
     "加州": [
         ("B&P Code §§22757–22757.6（SB 942 经 AB 853 修正）", "已生效（2026-08-02）"),
@@ -235,6 +264,17 @@ def pending_facts(answers: dict) -> list[tuple[str, str, str]]:
             )
         )
 
+    # B-7（2026-09-23）：Art. 50(4) 第 1-2 项（深度伪造）与 B6（第 3 项·公共利益文本）
+    # 同卡采集、独立落盘；「不确定」按最严口径列入待核（列待核范围，非推定成立）。
+    if str(answers.get("B6_deepfake", "")).strip() == "不确定":
+        rows.append(
+            (
+                "贵司生成/篡改的图像、音频或视频是否构成深度伪造（描绘可辨识自然人或可被误认为真实的事件）",
+                "欧盟 Art. 50(4) 第1-2项深伪披露义务是否触发",
+                "业务方（内容形态/素材来源）/法务确认",
+            )
+        )
+
     if str(answers.get("A2", "")).strip() == "不确定":
         rows.append(
             (
@@ -260,6 +300,45 @@ def pending_facts(answers: dict) -> list[tuple[str, str, str]]:
     ):
         if str(answers.get(key, "")).strip() in {"不确定", ""} and key in answers:
             rows.append((label, effect, "业务方/产品文档/法务确认"))
+
+    if resolve_b12_companion_status(answers) == "conditional":
+        rows.append((
+            "陪伴型聊天机器人定义或排除要件尚未确认",
+            "加州陪伴型聊天机器人场景义务是否适用",
+            "产品、运营与法务/功能说明、交互样例及访问政策",
+        ))
+    if resolve_b12_human_misidentification_status(answers) == "conditional":
+        rows.append((
+            "理性人是否可能误认正在与真人互动尚待核实",
+            "加州聊天机器人AI身份通知义务是否触发",
+            "产品与法务/交互开场、身份线索及界面样例",
+        ))
+    b13 = answers.get("B13")
+    if isinstance(b13, dict) and b13.get("role") == "unknown":
+        rows.append((
+            "广告活动中的创作者或广告媒介角色尚未确认",
+            "加州合成表演者广告规则的适用路径",
+            "营销、广告运营与法务/广告制作及投放合同",
+        ))
+    recheck = answers.get("AB1609_recheck")
+    if isinstance(recheck, dict) and recheck.get("recheck_required") is True:
+        rows.append((
+            "全美总年营收接近AB 1609门槛，须在复评节点取得新数据",
+            "AB 1609如生效后的主体门槛是否达到",
+            f"财务与法务/{recheck.get('recheck_by', '下一财年数据可得后')}",
+        ))
+
+    # agent2（2026-09-28）：4a 前置分流——存在作品广告时，(d)(4) 例外两要件待核
+    b13 = answers.get("B13")
+    if isinstance(b13, dict):
+        ew_present = b13.get("expressive_work_ad_present")
+        role = b13.get("role")
+        if ew_present in {"yes", "unknown"} and role in {"creator", "both"}:
+            rows.append((
+                "表现性作品例外两要件（是否为作品广告＋用法是否与作品本体内一致）",
+                "加州合成表演者广告披露义务是否因 §17610(d)(4) 例外不适用",
+                "广告制作团队/广告成片与作品本体素材",
+            ))
 
     if not rows:
         rows.append(("（本次无不确定项，无需待核）", PLACEHOLDER, PLACEHOLDER))
@@ -300,8 +379,9 @@ def current_practices_block(answers: dict) -> list[str]:
             "",
         ]
 
-    known = [v for v in values if v in B10_VALUES]
-    unknown = [v for v in values if v not in B10_VALUES]
+    applicable_values = relevant_b10_values(answers)
+    known = [v for v in values if v in applicable_values]
+    unknown = [v for v in values if v not in applicable_values]
 
     if known == ["尚未实施"]:
         done = "尚未实施任何透明度标识措施"
@@ -311,7 +391,7 @@ def current_practices_block(answers: dict) -> list[str]:
         if "尚未实施" in known and shown:
             done += "（另填报「尚未实施」，按部分实施处理）"
 
-    todo = [v for v in B10_VALUES if v != "尚未实施" and v not in known]
+    todo = [v for v in applicable_values if v != "尚未实施" and v not in known]
     todo_cell = (
         "；".join(v + "：" + PLACEHOLDER for v in todo) if todo else "（已填报全部措施类别）"
     )
@@ -366,6 +446,15 @@ def overview_rows(answers: dict, jurisdictions: list[str]) -> list[tuple[str, di
         rows.append(("应用程序分发平台运营", {}))
     if str(answers.get("B4_2", "")).strip() in {"是", "不确定"}:
         rows.append(("内容传播平台运营", {}))
+    if resolve_b12_companion_status(answers) in {"yes", "conditional"}:
+        rows.append(("陪伴型聊天机器人平台运营", {}))
+    b13 = answers.get("B13")
+    if isinstance(b13, dict):
+        role = b13.get("role")
+        if role in {"creator", "both", "unknown"}:
+            rows.append(("合成表演者广告制作与发布", {}))
+        if role in {"advertising_medium", "both", "unknown"}:
+            rows.append(("第三方广告传播媒介运营", {}))
 
     # 补占位：每行按在范围内的法域填占位（加州列若不在范围写「不适用（本次范围未含）」）
     filled: list[tuple[str, dict[str, str]]] = []
@@ -392,6 +481,28 @@ def render(answers: dict, report_name: str) -> str:
 
     session_date = str(answers.get("session_date", "")).strip() or "{待填：日期}"
     lines: list[str] = []
+
+    # agent2（2026-09-28）：交付偏好（A8）读取与默认标志。
+    # 报告配置只能来自两条合法路径：A8 采集键，或 defaults_applied 标志＋批注留痕；
+    # 不存在第三条路（阶段4 现场弹窗追问）。
+    defaults_applied: list[str] = []
+    lang_raw = str(answers.get("A8_report_language", "")).strip()
+    if lang_raw in {"纯中文", "中英双语"}:
+        report_language = lang_raw
+    else:
+        report_language = "纯中文"
+        defaults_applied.append("report_language")
+    foot_raw = str(answers.get("A8_footnote_original_text", "")).strip()
+    if foot_raw in {"是", "否"}:
+        footnote_pref = foot_raw
+    else:
+        footnote_pref = "否"
+        defaults_applied.append("footnote_original_text")
+    lines.append(
+        f"<!-- agent2-report-config: language={report_language}; "
+        f"footnote_original_text={footnote_pref}; "
+        f"defaults_applied={','.join(defaults_applied) if defaults_applied else 'none'} -->"
+    )
 
     lines.append(f"# {PLACEHOLDER}AI透明度合规义务清单（{'／'.join(jurisdictions)}）")
     lines.append("")
@@ -453,13 +564,51 @@ def render(answers: dict, report_name: str) -> str:
     for juris in jurisdictions:
         lines.append(f"### {juris}")
         lines.append("")
-        lines.append("**(1) {待填：义务名称}**")
-        lines.append("")
-        lines.append("根据{待填：法规名与条号}，{待填：义务内容}。")
-        lines.append("")
-        for label in DUTY_FIELD_LABELS:
-            lines.append(f"- {label}：{PLACEHOLDER}")
-        lines.append("")
+
+        layer_titles = [None]
+        if juris == "加州":
+            # 加州节四层中的第一层采用CAITA自身的来源披露与检测语境。
+            # /(二)场景披露义务（多部单行法逐法独立判定）/(三)关联非透明度义务
+            # /(四)本次评估范围外义务核验。与 README「两条并列路径」及 modeB 十三维对齐。
+            layer_titles = [
+                "（一）CAITA生成内容来源披露与检测义务",
+                "（二）场景披露义务",
+                "（三）关联非透明度义务",
+            ]
+        for layer_title in layer_titles:
+            if layer_title:
+                lines.append(f"#### {layer_title}")
+                lines.append("")
+            lines.append("**(1) {待填：义务名称}**")
+            lines.append("")
+            lines.append("根据{待填：法规名与条号}，{待填：义务内容}。")
+            lines.append("")
+            for label in DUTY_FIELD_LABELS:
+                lines.append(f"- {label}：{PLACEHOLDER}")
+            lines.append("")
+
+        if juris == "欧盟":
+            lines.append("**M{待填：Measure编号} {待填：措施名}**[^cop_s{待填}_c{待填}_m{待填}]")
+            lines.append("")
+            lines.append(f"- **层级**：{PLACEHOLDER}")
+            lines.append(f"- **要求内容**：{PLACEHOLDER}")
+            lines.append("- **技术与操作要点**：")
+            lines.append(f"  1. {PLACEHOLDER}")
+            lines.append(f"  2. {PLACEHOLDER}")
+            lines.append("")
+            lines.append("<!-- cop:item id={待填：注册表ID} points={待填：正文已覆盖的注册点} -->")
+            lines.append("")
+            lines.append(
+                "[^cop_s{待填}_c{待填}_m{待填}]: 《AI生成内容透明度行为准则》"
+                "Section {待填}，Commitment {待填}，Measure {待填}；对应AI Act Art. 50({待填})。"
+            )
+            lines.append("")
+
+        if juris == "加州":
+            lines.append("#### （四）本次评估范围外义务核验")
+            lines.append("")
+            lines.append("{待填：按out-of-scope-pointer.md列出需另行专项评估的相关维度}")
+            lines.append("")
         lines.append(
             "**角色间义务关系说明**："
             "{待填：多角色时逐条说明义务叠加／转致／联动；仅单一角色时写「无角色间义务关系需说明」}"
@@ -472,7 +621,11 @@ def render(answers: dict, report_name: str) -> str:
     lines.append("| 法域 | 罚则 | 执法主体 | 依据 |")
     lines.append("|------|------|----------|------|")
     for juris in jurisdictions:
-        lines.append(f"| {juris} | {PLACEHOLDER} | {PLACEHOLDER} | {PLACEHOLDER} |")
+        if juris == "加州":
+            lines.append(f"| 加州CAITA | {PLACEHOLDER} | {PLACEHOLDER} | {PLACEHOLDER} |")
+            lines.append(f"| 加州场景法规（实际引用时逐法分行） | {PLACEHOLDER} | {PLACEHOLDER} | {PLACEHOLDER} |")
+        else:
+            lines.append(f"| {juris} | {PLACEHOLDER} | {PLACEHOLDER} | {PLACEHOLDER} |")
     lines.append("")
 
     # 五、落地建议
@@ -480,9 +633,16 @@ def render(answers: dict, report_name: str) -> str:
     lines.append("")
     lines.append(f"### 主题一：{PLACEHOLDER}")
     lines.append("")
-    lines.append(f"- 义务来源：{PLACEHOLDER}")
-    lines.append(f"- 统一落地措施：{PLACEHOLDER}")
-    lines.append(f"- 优先级：{PLACEHOLDER} ｜ 建议落地节点：{PLACEHOLDER}")
+    lines.append(f"- **覆盖义务**：{PLACEHOLDER}")
+    lines.append(f"- **控制目标**：{PLACEHOLDER}")
+    lines.append("- **实施动作**：")
+    lines.append(f"  1. {PLACEHOLDER}")
+    lines.append(f"  2. {PLACEHOLDER}")
+    lines.append(f"- **责任分工**：主责：{PLACEHOLDER}；协同：{PLACEHOLDER}")
+    lines.append(f"- **优先级与节点**：{PLACEHOLDER}")
+    lines.append(f"- **验收证据**：{PLACEHOLDER}")
+    lines.append(f"- **条件与依赖**：{PLACEHOLDER}（无条件或外部依赖时删除本行）")
+    lines.append("<!-- cop:recommendation theme={待填：ASCII主题键} duties={待填：逗号分隔的义务ID} -->")
     lines.append("")
 
     # 六、效力核验记录（★强制）
@@ -494,6 +654,24 @@ def render(answers: dict, report_name: str) -> str:
         for name, status in VERIFY_ROWS[juris]:
             lines.append(f"| {name} | {status} | {session_date} | {PLACEHOLDER} |")
     if "加州" in jurisdictions:
+        chat_status = derive_b5b_chat_status(answers)
+        if chat_status in {"yes", "unknown"}:
+            lines.append(f"| B&P Code §§17940–17943（BOT Act） | 现行有效 | {session_date} | {PLACEHOLDER} |")
+        if resolve_b12_companion_status(answers) in {"yes", "conditional"}:
+            lines.append(f"| SB 243（B&P Code §§22601–22604） | 现行有效 | {session_date} | {PLACEHOLDER} |")
+            lines.append(f"| SB 867（§22601定义修订） | 已制定；按报告日核验生效状态 | {session_date} | {PLACEHOLDER} |")
+            lines.append(f"| SB 1119（B&P Code §§21810.5–21815及§22602修订） | 按条款级时间状态核验 | {session_date} | {PLACEHOLDER} |")
+        b13 = answers.get("B13")
+        if isinstance(b13, dict) and b13.get("role") in {
+            "creator", "advertising_medium", "both", "unknown"
+        }:
+            lines.append(f"| SB 1050（合成表演者广告） | 已制定；2027-01-01生效 | {session_date} | {PLACEHOLDER} |")
+        if answers.get("AB1609_status"):
+            ab1609 = ab1609_baseline(str(answers["AB1609_status"]))
+            lines.append(
+                f"| AB 1609（客服机器人，监控项） | {ab1609['annotation']} | "
+                f"{session_date} | {PLACEHOLDER} |"
+            )
         # SB 1000 行由效力状态开关机械决定（同源于 lookups.py）
         status_raw = answers.get("SB1000_status", "不确定")
         baseline = sb1000_baseline(str(status_raw))
@@ -507,8 +685,10 @@ def render(answers: dict, report_name: str) -> str:
         lines.append("")
         # 正文禁 blockquote（E-04）：改普通加粗段；且不写内部脚本名（属报告外实现细节）。
         # 措辞不得新引入「效力核验表未登记」的法规名/条号——否则本行会触发 W-14（覆盖率）。
+        # B-5（2026-09-23）：渲染人类可读基准名，内部 token（SB942_AB853/SB1000）不进交付物
+        baseline_readable = baseline.get("readable") or baseline["baseline"]
         lines.append(
-            f"**义务基准**：{baseline['baseline']}"
+            f"**义务基准**：{baseline_readable}"
             "（依加州 §22757 效力状态开关确定，随 SB 1000 签署状态切换）"
         )
     lines.append("")
@@ -534,6 +714,12 @@ def render(answers: dict, report_name: str) -> str:
     # 回填确认记录为 W-19 的机器检查锚点（模式A 批注节须含该条目，模板 §4 同名条目）：
     # 具名占位使骨架态即满足条目存在性，缺项不再靠记忆。
     lines.append(f"- **回填确认记录**：{PLACEHOLDER}")
+    if defaults_applied:
+        # agent2（2026-09-28）：交付偏好缺键时的默认采用留痕（check_report 一致性检查锚点）。
+        lines.append(
+            f"- **交付偏好默认采用记录**：{('、'.join(defaults_applied))} 未采集（用户跳过），"
+            "按默认规则执行（纯中文＋正文以条号援引）；如需调整请在报告定稿前告知。"
+        )
     lines.append(f"- {PLACEHOLDER}")
     lines.append("")
 
@@ -579,13 +765,24 @@ def main(argv: list[str] | None = None) -> int:
     # 须显式 --force 才放行——防矛盾答案静默进入骨架产物。
     try:
         problems = cross_check_scale(answers) + cross_check_capability_modality(answers)
+        problems += cross_check_b13_gate(answers)
+        problems += cross_check_b13_expressive_work_gate(answers)
+        problems += cross_check_chat_confirmation(answers)
+        derived_errors, derived_warnings = cross_check_derived_keys(answers)
     except Exception as exc:  # noqa: BLE001 - 校验失败视为「未执行」，同样不静默放行
         problems = [f"（答案级交叉校验未执行：{exc}）"]
+        derived_warnings = []
+    # B-11′：派生键「落盘更宽（少报）」属答案级矛盾，与上述问题同等拒绝；
+    # 「落盘更严（多报，人工保守）」只留痕放行（骨架按较严值出行）。
+    problems += derived_errors
+    for w in derived_warnings:
+        print(f"[~] {w}", file=sys.stderr)
     for p in problems:
         print(f"[!] {p}", file=sys.stderr)
     if problems and not args.force:
         print(
-            "build_skeleton: 检测到答案级问题（统计详情不完整／值域无法识别／能力与模态矛盾／校验未执行），拒绝生成"
+            "build_skeleton: 检测到答案级问题（统计详情不完整／值域无法识别／能力与模态矛盾／"
+            "派生键落盘更宽／校验未执行），拒绝生成"
             "（须弹窗澄清并修订 answers；加 --force 可强行生成）",
             file=sys.stderr,
         )

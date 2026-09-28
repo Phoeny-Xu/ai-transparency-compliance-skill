@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Move the final internal annotation chapter of a DOCX into real Word comments."""
+"""Compatibility fallback for moving a final annotation chapter into Word comments."""
 
 from __future__ import annotations
 
@@ -43,13 +43,17 @@ def _heading_level(element) -> int | None:
 
 
 def _annotation_start(children) -> tuple[int, int] | None:
-    """Find only a heading whose text is the annotation chapter title."""
+    """Find an annotation heading only when it is the final top-level chapter."""
     for index, element in enumerate(children):
         level = _heading_level(element)
         if level is None:
             continue
         text = _paragraph_text(element).strip()
         if text in ANNOTATION_TITLES:
+            for later in children[index + 1 :]:
+                later_level = _heading_level(later)
+                if later_level is not None and later_level <= level:
+                    return None
             return index, level
     return None
 
@@ -153,6 +157,13 @@ def _get_or_create_comments_part(doc: Document):
     )
     doc.part.relate_to(comments_part, COMMENTS_REL)
     return comments_part
+
+
+def _existing_comments_part(doc: Document):
+    for relationship in doc.part.rels.values():
+        if relationship.reltype == COMMENTS_REL:
+            return relationship.target_part
+    return None
 
 
 def _ensure_comment_styles(doc: Document) -> None:
@@ -310,15 +321,20 @@ def _add_comment(comments_part, anchor: Paragraph, comment_id: int, title: str, 
 
 
 def convert_docx_annotations(docx_path: str | Path, author: str = "合规分析") -> int:
-    """Move one final annotation chapter into comments and return the new count."""
+    """Move one final annotation chapter into comments and return the new count.
+
+    Existing Word comments are rejected by default to prevent a fallback pass
+    from duplicating or damaging comments created through the native DOCX path.
+    """
     path = Path(docx_path)
     doc = Document(path)
     had_annotation_chapter = _annotation_start(list(doc.element.body)) is not None
-    entries = extract_and_strip_annotations(doc)
     if not had_annotation_chapter:
         return 0
+    if _existing_comments_part(doc) is not None:
+        raise RuntimeError("DOCX已存在Word批注；默认拒绝重复注入，请勿混用原生与回退路径")
+    entries = extract_and_strip_annotations(doc)
     if not entries:
-        doc.save(path)
         return 0
     _ensure_comment_styles(doc)
     comments_part = _get_or_create_comments_part(doc)
@@ -335,11 +351,26 @@ def convert_docx_annotations(docx_path: str | Path, author: str = "合规分析"
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="将末尾批注章节转换为 Word 批注")
+    parser = argparse.ArgumentParser(description="兼容性回退：将末尾批注章节转换为 Word 批注")
     parser.add_argument("docx", help="待处理的 DOCX 文件")
     parser.add_argument("--author", default="合规分析", help="批注作者")
+    parser.add_argument(
+        "--confirm-fallback",
+        action="store_true",
+        help="确认满足回退条件；缺少该参数时不覆盖或重新保存 DOCX",
+    )
     args = parser.parse_args(argv)
-    count = convert_docx_annotations(args.docx, author=args.author)
+    if not args.confirm_fallback:
+        print(
+            "annotations_to_docx_comments: 需要明确回退确认；请使用 --confirm-fallback。",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        count = convert_docx_annotations(args.docx, author=args.author)
+    except (OSError, ValueError, RuntimeError) as error:
+        print(f"annotations_to_docx_comments: {error}", file=sys.stderr)
+        return 1
     print(f"converted {count} annotation(s)")
     return 0
 

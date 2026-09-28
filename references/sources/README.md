@@ -34,5 +34,14 @@
 | CA-SB942-chaptered.md | SB 942 (2024, Ch. 291) California AI Transparency Act签署版全文 | leginfo billTextClient | 2026-08-08 |
 | CA-AB853-chaptered.md | AB 853 (2025, Ch. 674)签署版全文（修正案，非清洁版） | leginfo billTextClient | 2026-08-08 |
 | CA-SB1000-enrolled.md | SB 1000（2025-2026 会期）正式通过版（Enrolled）逐字全文（尚未 chaptered，签署后取得章号） | leginfo billTextClient | 2026-09-05 |
+| CA-SB1001-BOT-Act-chaptered.md | SB 1001（2018）BOT Act签署版全文 | leginfo billTextClient，Chaptered 2018-09-28 | 2026-09-22 |
+| CA-SB243-chaptered.md | SB 243陪伴型聊天机器人签署版全文 | leginfo billTextClient，Chaptered 2025-10-13 | 2026-09-22 |
+| CA-SB867-chaptered.md | SB 867对§22601的修订及§22604.5签署版全文 | leginfo billTextClient，Chaptered 2026-09-10 | 2026-09-22 |
+| CA-SB1119-chaptered.md | SB 1119（Adam's Law）签署版全文 | leginfo billTextClient，Chaptered 2026-09-10 | 2026-09-22 |
+| CA-SB1050-chaptered.md | SB 1050合成表演者广告签署版全文 | leginfo billTextClient，Chaptered 2026-09-16 | 2026-09-22 |
+| CA-SB896-chaptered.md | SB 896政府生成式AI通信披露签署版全文 | leginfo billTextClient，Chaptered 2024-09-29 | 2026-09-22 |
+| CA-AB3030-chaptered.md | AB 3030医疗临床通信披露签署版全文 | leginfo billTextClient，Chaptered 2024-09-28 | 2026-09-22 |
+| CA-AB1609-enrolled.md | AB 1609客服机器人正式通过版全文（截至2026-09-22待州长处理） | leginfo billTextClient，Enrolled 2026-09-04 | 2026-09-22 |
 
 > 加州合并阅读规则：AB 853修订/新增条款从其为准；SB 942未被触及条款继续有效。合并结论见ca-rules.md。
+> 场景规则按法案独立阅读，结论见`../ca-scenario-disclosure-rules.md`。本目录新增文本为官方页面的机械提取本；逐字引文仍应以文件头所列官方URL复核。
