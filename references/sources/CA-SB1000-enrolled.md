@@ -2,8 +2,8 @@
 
 > 来源：leginfo 官方 bill text（Enrolled，2026-08-30 誊清）
 > 官方历史页：https://leginfo.legislature.ca.gov/faces/billHistoryClient.xhtml?bill_id=202520260SB1000
-> 状态：2026-09-02 下午3时已提交州长，截至 2026-09-05 待签署；适用加州宪法 Art. IV §10(b)(2)，州长须于 2026-09-30 前签署或否决，否则自动成为法律（加州无 pocket veto）；紧急法案（urgency statute），一经签署或自动成为法律即立即生效。
-> 入库日期：2026-09-05 ｜ 性质：官方一手文本（Enrolled，尚未 chaptered，签署后将取得章号）
+> 状态：**2026-09-30 经州长签署，Chapter 861, Statutes of 2026**，紧急法案即时生效。（保留下方 Enrolled 原文不动）
+> 入库日期：2026-09-05 ｜ 性质：官方一手文本（Enrolled，已由 Chapter 861 章化）
 
 An act to amend Sections 22757.1, 22757.2, 22757.3, 22757.4, and 22757.5 of, and to add and repeal Section 22757.4.1 of, the Business and Professions Code, relating to artificial intelligence, and declaring the urgency thereof, to take effect immediately. LEGISLATIVE COUNSEL'S DIGEST
 

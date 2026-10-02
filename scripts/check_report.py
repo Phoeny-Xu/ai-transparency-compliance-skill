@@ -78,6 +78,8 @@ CATALOG: list[tuple[str, str, str]] = [
     ("E-11", "E", "义务详述节每项含「证据等级」字段（阶段4硬性要求3）"),
     ("E-12", "E", "模式B 小节存在性：欧盟各主体「成文法义务与行为准则义务的衔接」／对比第七节「相同点·不同点·共通要求·单法域特别规定」（㉑）"),
     ("E-13", "E", "加州场景法规逐法独立登记效力状态（正文引用一部，效力核验表即单列一行）"),
+    ("W-27", "W", "CoP 签署范围差距提示：签署范围未覆盖适用角色对应 Section 时落地建议须含补签评估差距项（agent2，2026-09-28；启发式，无审计文件时跳过）"),
+    ("W-28", "W", "交付偏好一致性：报告实际语言/脚注形态与骨架配置注释一致；defaults_applied 非空时批注节须含「交付偏好默认采用记录」（agent2，2026-09-28）"),
     ("W-01", "W", "斜体（`*…*`）不用于承载警示（报告格式铁律）"),
     ("W-02", "W", "脚注非概括性（不以「含」「等」起止）"),
     ("W-03", "W", "正文义务措辞不混用「必须」（L3 应用「应当」/「建议」）"),
@@ -101,8 +103,6 @@ CATALOG: list[tuple[str, str, str]] = [
     ("W-24", "W", "模式B 报告出现独立的 CoP 措施章节——CoP 应随欧盟义务就地展开，不得单独成节（⑭）"),
     ("W-25", "W", "模式B 报告出现模式A 专有语汇（画像事实／画像推断／用户答「不确定」）——modeB 跳过问卷、不针对具体产品（批注语义）"),
     ("W-26", "W", "SB 1000 效力三方一致性：义务基准行 × 效力核验表 SB 1000 行 × 临近节点截止日（B-4，防 status 与正文错配）"),
-    ("W-27", "W", "CoP 签署范围差距提示：签署范围未覆盖适用角色对应 Section 时落地建议须含补签评估差距项（agent2，2026-09-28；启发式，无审计文件时跳过）"),
-    ("W-28", "W", "交付偏好一致性：报告实际语言/脚注形态与骨架配置注释一致；defaults_applied 非空时批注节须含「交付偏好默认采用记录」（agent2，2026-09-28）"),
     ("W-00", "W", "存在行内豁免（留痕提示）"),
 ]
 
@@ -263,6 +263,10 @@ CA_SCENARIO_LAWS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("SB 896", re.compile(r"(?<![A-Za-z0-9])SB\s*896(?![A-Za-z0-9])", re.I)),
     ("AB 3030", re.compile(r"(?<![A-Za-z0-9])AB\s*3030(?![A-Za-z0-9])", re.I)),
     ("AB 1609", re.compile(r"(?<![A-Za-z0-9])AB\s*1609(?![A-Za-z0-9])", re.I)),
+    # AB 2713（CAITA §22757.3.1 修正案，2025-2026 会期）：与场景法同等纳入 E-13 逐法登记——
+    # 正文前瞻提示 AB 2713 时，效力核验表须有对应 pending/生效状态行，防「引用了法案但效力表
+    # 无行」的静默失效（2026-09-30，触发式深度核验批次）。
+    ("AB 2713", re.compile(r"(?<![A-Za-z0-9])AB\s*2713(?![A-Za-z0-9])", re.I)),
 )
 
 
@@ -404,83 +408,6 @@ def check_report(path: Path, jurisdictions: set[str], lang: str, mode: str, root
     annot_start = structure["annot_start"]
     findings: list[Finding] = []
 
-    # ---- W-28 交付偏好一致性（agent2，2026-09-28；仅模式A）----
-    # 骨架头部的 agent2-report-config 注释记录了报告语言、脚注形态与 defaults_applied。
-    # 实际 CLI 参数（--lang）与配置注释的语言不一致 → 提醒；defaults_applied 非空时，
-    # 批注节须含「交付偏好默认采用记录」条目（骨架已具名生成，缺项即为 agent 删除）。
-    # 前置信号：配置注释未命中（旧报告/手写报告）→ W-23 提醒，不硬报。
-    if mode == "A":
-        config_re = re.compile(
-            r"<!--\s*agent2-report-config:\s*language=(?P<lang>[^;]+);\s*"
-            r"footnote_original_text=(?P<foot>[^;]+);\s*"
-            r"defaults_applied=(?P<defaults>[^>]*?)\s*-->"
-        )
-        config_match = config_re.search(text)
-        if config_match:
-            config_lang = config_match.group("lang").strip()
-            defaults_raw = config_match.group("defaults").strip()
-            # agent2 修复：骨架对「无默认项」写 defaults_applied=none，须视为空集，不得触发留痕检查。
-            defaults_list = [d.strip() for d in defaults_raw.split(",") if d.strip() and d.strip() != "none"]
-            # agent2 修复：--lang（zh/zh-en）与配置键（纯中文/中英双语）用映射比对，不做字面相等。
-            cli_lang = "中英双语" if lang == "zh-en" else "纯中文"
-            if config_lang != cli_lang:
-                findings.append(Finding(
-                    "W-28", 1,
-                    f"交付偏好一致性：骨架配置 language={config_lang} 与本次校验参数 --lang {lang} "
-                    "不一致——请核对报告实际语言（双语须段段对应，中/单语须无成段英文对照）",
-                ))
-            if defaults_list:
-                has_default_record = annot_start is not None and any(
-                    "交付偏好默认采用记录" in line for line in lines[annot_start:]
-                )
-                if not has_default_record:
-                    findings.append(Finding(
-                        "W-28", annot_start + 1 if annot_start is not None else 1,
-                        f"交付偏好默认采用记录缺失：defaults_applied={defaults_raw}（骨架已在批注节 §4 具名生成该条目，" 
-                        "缺失说明被删除）；默认执行须在批注节留痕后方可交付",
-                    ))
-            if "footnote_original_text=是" in text and lang != "zh-en":
-                # 脚注偏好=是时，报告应存在 CoP 之外的原文引文脚注（启发式：存在 [^开头的定义行且含条号引用符）。
-                # 判「无任何脚注定义」才报，避免对脚注格式细节误报。
-                if not any(re.match(r"\[\^[^\]]+\]:", line) for line in lines):
-                    findings.append(Finding(
-                        "W-28", 1,
-                        "交付偏好一致性：配置 footnote_original_text=是 但报告无任何脚注定义——"
-                        "脚注注明法条原文的偏好未落实",
-                    ))
-        else:
-            findings.append(Finding(
-                "W-23", 0,
-                "模式A 报告未命中 agent2-report-config 配置注释（旧报告或手工生成），"
-                "W-28 交付偏好一致性未执行，须人工确认报告语言与脚注偏好来源",
-            ))
-
-    # ---- W-27 CoP 签署范围差距提示（agent2，2026-09-28；仅模式A＋范围含欧盟）----
-    # 启发式：落地建议节须含「签署范围」类差距提示；无 CoP 签署事实（矩阵/审计）时跳过，
-    # 精确的 signatory×角色比对归 validate_cop_coverage --audit。
-    if mode == "A" and "EU" in jurisdictions:
-        rec_span = None
-        for idx, (i, level, htext) in enumerate(structure["headings"]):
-            if level == 2 and "落地建议" in htext:
-                end = len(lines)
-                for j, lv, _ in structure["headings"][idx + 1 :]:
-                    if lv <= level:
-                        end = j
-                        break
-                rec_span = (i, end)
-                break
-        if rec_span is not None:
-            rec_text = "\n".join(lines[rec_span[0] : rec_span[1]])
-            mentions_cop_section = bool(re.search(r"Section\s*[1212]|行为准则", rec_text))
-            has_gap_item = bool(re.search(r"签署范围差距|评估是否补签|补签.{0,12}Section", rec_text))
-            if mentions_cop_section and not has_gap_item:
-                findings.append(Finding(
-                    "W-27", rec_span[0] + 1,
-                    "落地建议涉 CoP Section 但未见「签署范围差距提示」（评估是否补签未覆盖 Section）——"
-                    "规则见 reporting-rules.md §一.8；若本次无签署差距（如两 Section 均已覆盖），"
-                    "请人工确认后豁免本条",
-                ))
-
     def in_body(i: int) -> bool:
         return (annot_start is None or i < annot_start) and not in_fence[i]
 
@@ -511,9 +438,11 @@ def check_report(path: Path, jurisdictions: set[str], lang: str, mode: str, root
                 break
 
     # ---- E-04 blockquote ----
-    # 规则边界（2026-09-15 用户裁定，非临时口径）：
-    #   报头声明区 = 文档主标题至首个二级标题之间。该区允许以 `>` 呈现「生成日期／法规
-    #   时效声明／依据／范围声明」等声明性内容（modeA-report-template 自身即为 `>`）。
+    # 规则边界（2026-09-15 用户裁定，非临时口径；2026-10-02 随报头元数据整块移入批注更新说明）：
+    #   报头声明区 = 文档主标题至首个二级标题之间。该区允许以 `>` 呈现「临近节点提示」等
+    #   须读者即时看见的元数据块；生成日期／效力核验日期／依据／范围声明／法规时效已整块
+    #   移入文末批注节「报头声明」子节，正文与报头均不保留——**本码的判定边界不变**，
+    #   仍按位置划分，故上述迁移不改变 E-04 的判定结果。
     #   正文 = 首个二级标题（含）之后。正文内一律禁用 `>` 承载任何内容。
     # 裁定理由：报头声明是读者预期中的元数据块，与正文陈述混同风险低；正文用灰色块
     #   会让读者误认作法规原文引文，故从严。规则同时写入 modeA-report-template 格式铁律、
@@ -625,14 +554,33 @@ def check_report(path: Path, jurisdictions: set[str], lang: str, mode: str, root
 
         # ---- W-16 SB 1000 效力三方一致性（B-4，2026-09-23 新增）----
         # 报告内部三方自洽：义务基准行 × 效力核验表 SB 1000 行 × 临近节点提示。
-        # 待签署期（截止 2026-09-30）：正文义务基准不得呈现为 SB 1000 生效版序号体系
+        # 效力基准三方一致性（SB 1000 已于 2026-09-30 签署生效）：正文义务基准不得呈现为 SB 1000 生效版序号体系
         # （§22757.2 修订版序号或「SB 1000 生效版」字样）；已签署/超期自动生效则反向。
+        # 关键词集加固（2026-10-01，防复发；见《SB1000_AB2713_skill改动清单_20261001》§九）：
+        #   ① 待签署信号**移除裸日期「2026-09-30」**——该日期已合法出现在「已签署」效力行（签署日）中，
+        #      保留会使含日期的行同时命中「待签署＋生效」两信号，令本码对真实报告整体静默失效；
+        #   ② 待签署信号改以**未决措辞**判定（「待…签署」「未(获)签署」「州长…尚未/未予签署」），
+        #      覆盖「待签署」「待州长签署」两种写法，且不与正向「州长签署」撞车（H2）；
+        #   ③ 生效信号补「即时生效」「Ch. 861／Chapter 861」（紧急法案标准表述与章号，H1）。
+        #   ④ **信号域收窄至「SB 1000 状态行」**（不再整节扫描）：效力核验节另含通用法规行
+        #      （骨架：「B&P Code §§22757–22757.6（SB 1000 生效版…即时生效）｜已生效」），
+        #      整节扫描会让 effective 恒为真；旧版又因待签署信号含裸日期而使 pending 恒为真——
+        #      两者叠加使本码对一切真实报告静默失效（2026-10-01 骨架态回归发现，属 H2 必要补充）。
+        #      本码判的是**状态行 × 义务基准行**的自洽，故信号只取状态行：
+        #      取提及 SB 1000 且标注为「CAITA／修正案」的行（模板与骨架的状态行统一写作
+        #      「加州 SB 1000（CAITA 修正案）」；通用 B&P 法规登记行不含该标记）；取不到时回退整节。
         if "CA" in jurisdictions and has_sb1000:
+            _stat_lines = [
+                l for l in lines[start:end]
+                if ("SB 1000" in l or "SB1000" in l)
+                and ("CAITA" in l or "修正案" in l)
+            ]
+            row_seg = "\n".join(_stat_lines) or seg
             sb1000_row_says_pending = bool(
-                re.search(r"待签署|未签署|州长.{0,6}(签署|否决)|2026-09-30", seg)
+                re.search(r"待.{0,4}签署|未(获)?签署|州长.{0,10}(尚未|未予|未|不予|没能)(签署|否决)", row_seg)
             )
             sb1000_row_says_effective = bool(
-                re.search(r"已签署|立即生效|自动成为法律|已生效", seg)
+                re.search(r"已签署|立即生效|即时生效|自动成为法律|已生效|Ch\.? ?861|Chapter 861", row_seg)
             )
             # 义务基准行（全文找「**义务基准**」）
             baseline_seg = "\n".join(

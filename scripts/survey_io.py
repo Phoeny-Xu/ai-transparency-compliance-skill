@@ -49,13 +49,13 @@ META_KEYS = frozenset({"schema", "report", "session_date", "history", "answers"}
 KNOWN_KEYS = frozenset(
     {
         "A1", "A2", "A3", "A3_functions", "A3_modalities", "A3_detection", "A4a", "A4b", "A4c", "A4a_details", "A5", "A6", "A7",
-        "A8_report_language", "A8_footnote_original_text",
         "B1_1", "B1_2", "B1_3", "B1_4", "B1_hardware",
         "B2", "B3a", "B3a_details",
         "B4_1", "B4_2", "B4_2a", "B4_2b", "B4_2c", "B4_2c_details",
-        "B5a", "B5b", "B5b_interactive", "B5b_chat_status", "B5b_other_chat_confirmed", "chat_confirmed",
+        "B5a", "B5b", "B5b_interactive", "B5b_chat_status", "B5b_other_chat_confirmed",
         "B6", "B6_deepfake", "B7", "B8_1", "B8_2", "B8_3", "B8_4", "B9", "B10_current_practices", "B11_cop",
-        "B12", "B12_companion_status", "B12_human_misidentification_status", "B13", "B13_gate",
+        "A8_report_language", "A8_footnote_original_text",
+        "B12", "B12_companion_status", "B12_human_misidentification_status", "B13",
         "scale_facts", "AB1609_status", "AB1609_recheck",
         "SB1000_status",
     }
@@ -115,10 +115,6 @@ _B4_2A_VALUES = frozenset({
 # 数组字段的元素级值域（键须同时在 _LIST_FIELDS 内才生效）
 _LIST_ENUMS: dict[str, frozenset] = {"B4_2a": _B4_2A_VALUES}
 _TRI_STATE = frozenset({"yes", "no", "unknown"})
-# agent2（2026-09-28）：交付偏好（A8）与 B13 总闸门封闭值域
-_REPORT_LANGUAGE = frozenset({"纯中文", "中英双语", "不确定"})
-_FOOTNOTE_PREF = frozenset({"是", "否", "不确定"})
-_B13_GATE_VALUES = frozenset({"两类都有", "只自产广告", "只投放第三方", "都没有", "不确定"})
 _B10_VALUES = frozenset({
     "界面文字或语音提示", "画面角标或可见标记", "隐式标识（元数据/水印）",
     "仅合同或条款约定", "AI交互身份提示", "未成年人适龄AI身份提示",
@@ -156,7 +152,13 @@ _DETAIL_KEYS = {
         "deduplication_method", "threshold_interpretation", "source", "notes",
     },
 }
+# 交付偏好（A8）封闭值域（agent2，2026-09-28 批次回迁）。
+_REPORT_LANGUAGE = frozenset({"纯中文", "中英双语", "不确定"})
+_FOOTNOTE_PREF = frozenset({"是", "否", "不确定"})
+
 _ENUMS = {
+    "A8_report_language": _REPORT_LANGUAGE,
+    "A8_footnote_original_text": _FOOTNOTE_PREF,
     "B1_3": _YES_NO_UNKNOWN,
     "B1_4": _YES_NO_UNKNOWN,
     "B4_2": _YES_NO_UNKNOWN,
@@ -173,10 +175,6 @@ _ENUMS = {
     "B8_4": frozenset({"是", "否", "部分完成", "不适用", "不确定"}),
     "B9": _YES_NO_UNKNOWN,
     "B5b_chat_status": _TRI_STATE,
-    "chat_confirmed": _TRI_STATE,
-    "A8_report_language": _REPORT_LANGUAGE,
-    "A8_footnote_original_text": _FOOTNOTE_PREF,
-    "B13_gate": _B13_GATE_VALUES,
     "B12_companion_status": frozenset({"yes", "no", "conditional"}),
     "B12_human_misidentification_status": frozenset({"yes", "no", "conditional"}),
     "AB1609_status": frozenset({
@@ -476,8 +474,7 @@ def _normalise_answers(raw: dict, *, schema_id: str | None = None) -> tuple[dict
             if key == "B13":
                 allowed = {
                     "role", "commercial_advertisement", "genai_human_performance",
-                    "identifiable_natural_person", "prominent_use", "expressive_work_ad_present",
-                    "expressive_work",
+                    "identifiable_natural_person", "prominent_use", "expressive_work",
                     "use_consistent_within_work",
                     "translation_only", "accessibility_only", "court_order_status",
                 }
@@ -489,8 +486,8 @@ def _normalise_answers(raw: dict, *, schema_id: str | None = None) -> tuple[dict
                     raise AuditFormatError(f"answers.B13.role: invalid or missing value {role!r}")
                 creator_fields = {
                     "commercial_advertisement", "genai_human_performance",
-                    "identifiable_natural_person", "prominent_use", "expressive_work_ad_present",
-                    "expressive_work", "use_consistent_within_work",
+                    "identifiable_natural_person", "prominent_use", "expressive_work",
+                    "use_consistent_within_work",
                     "translation_only", "accessibility_only",
                 }
                 if role in {"none", "unknown"} and set(value) != {"role"}:
@@ -499,23 +496,9 @@ def _normalise_answers(raw: dict, *, schema_id: str | None = None) -> tuple[dict
                     raise AuditFormatError("answers.B13: advertising_medium路径不得包含创作者字段")
                 if role == "creator" and "court_order_status" in value:
                     raise AuditFormatError("answers.B13: creator路径不得包含广告媒介法院命令字段")
-                # agent2（2026-09-28）：4a 前置分流一致性（结构层：仅字段级直接矛盾；
-                # 跨键完整性与闸门三向一致性归 resolve_triggers 答案级校验，避免同缺陷双层级）。
-                ew_present = value.get("expressive_work_ad_present")
-                if ew_present is not None and ew_present not in _TRI_STATE:
-                    raise AuditFormatError(
-                        f"answers.B13.expressive_work_ad_present: invalid tri-state {ew_present!r}"
-                    )
-                if ew_present == "no" and (
-                    "expressive_work" in value or "use_consistent_within_work" in value
-                ):
-                    raise AuditFormatError(
-                        "answers.B13: expressive_work_ad_present=no 时不得落 expressive_work/"
-                        "use_consistent_within_work（4a 前置分流：无作品广告则例外要件不采集）"
-                    )
                 for field in (
                     "commercial_advertisement", "genai_human_performance",
-                    "identifiable_natural_person", "expressive_work_ad_present", "expressive_work", "use_consistent_within_work",
+                    "identifiable_natural_person", "expressive_work", "use_consistent_within_work",
                     "translation_only", "accessibility_only", "court_order_status",
                 ):
                     if field in value and value[field] not in _TRI_STATE:

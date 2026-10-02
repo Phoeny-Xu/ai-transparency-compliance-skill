@@ -23,6 +23,12 @@ COMMENTS_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordproce
 ANNOTATION_TITLES = {"批注", "批注（判断过程、思路与假设）"}
 MARKDOWN_SUBSECTION_RE = re.compile(r"^###\s+\d+[.、][ \t]*(.+?)[ \t]*$", re.MULTILINE)
 
+# 锚点哨兵：不按文字匹配段落，而是定位「文档主标题」（首个一级标题 Heading 1）。
+# 供「报头声明」批注使用——该类声明的正文承载位已整块移除（2026-10-02 用户裁定 2A：
+# 正文不留任何指针文字），气泡须落在主标题上。文本锚点词与哨兵可并存：先试哨兵、
+# 无一级标题时再按文本锚点回退。
+HEADING1_ANCHOR = "\x00H1"
+
 
 def _paragraph_text(element) -> str:
     return "".join(node.text or "" for node in element.iter(qn("w:t")))
@@ -231,6 +237,10 @@ def _find_anchor(doc: Document, title: str) -> Paragraph:
     #   注：① 的标题词「主体」「判定」与 modeA ①（角色判定推理，经「判定」命中）及
     #   对比模板 ②（主体对应关系推理，经「主体」命中）部分重叠；因规则**按序尝试、
     #   不提前放弃**，且两条新规则置于末位，故 modeA/对比模板的既有命中不受影响。
+    # 模式A／B 批注「报头声明」子节（2026-10-02 用户裁定：整块报头声明——生成日期／
+    #   效力核验日期、依据、范围声明（中英文）＋法规时效——原置于报头，现整块改由批注承载，
+    #   正文不再保留任何指针文字）→ **锚点＝文档主标题（Heading 1）**；无一级标题的文档
+    #   （如未填主标题的骨架产物）由同一规则回退锚「效力核验记录」节。见 title_rules 末条。
     # 规则按序尝试：先命中的标题词若无对应锚点段落，则继续尝试后续规则（不提前放弃）。
     title_rules = (
         (("角色", "判定"), ("画像摘要与角色判定",)),
@@ -244,14 +254,26 @@ def _find_anchor(doc: Document, title: str) -> Paragraph:
         # 模式B 单法域梳理模板（2026-09-20 补；置于末位，不影响上方 modeA／对比模板命中）
         (("主体", "判定"), ("义务主体与义务内容",)),
         (("特定规则", "适用"), ("义务主体与义务内容",)),
+        # 报头声明（2026-10-02 用户裁定：整块报头声明——生成日期／效力核验日期、依据、
+        #   范围声明（中英文）＋法规时效——改由批注承载，正文整块移除、不留指针文字）。
+        #   锚点＝文档主标题（Heading 1）：正文已无「依据」行可锚，气泡落文首、合读者预期；
+        #   文档无一级标题时（如未填主标题的骨架产物）由同一规则回退锚「效力核验记录」节
+        #   ——该节由 E-01 强制存在，故不会再降级挂文档末段。
+        #   标题词含「报头」与「时效」：合并后的子节名同时含两者；历史文档若仍留独立
+        #   「法规时效声明」子节，亦按同一规则锚主标题。
+        #   ★新增规则置于末位：其标题词与既有各规则均不重叠，不影响既有命中。
+        (("报头", "时效"), (HEADING1_ANCHOR, "效力核验记录")),
     )
     paragraphs = _paragraphs(doc)
     matched_rule = False
     for title_words, anchor_words in title_rules:
         if any(word in title for word in title_words):
             matched_rule = True
+            text_words = [word for word in anchor_words if word != HEADING1_ANCHOR]
             for paragraph in paragraphs:
-                if any(word in paragraph.text for word in anchor_words):
+                if HEADING1_ANCHOR in anchor_words and _heading_level(paragraph._p) == 1:
+                    return paragraph
+                if text_words and any(word in paragraph.text for word in text_words):
                     return paragraph
     if paragraphs:
         reason = "未匹配到锚点段落" if matched_rule else "标题不属于已知归类"

@@ -58,7 +58,8 @@
 
 | B&P Code §§22757–22757.6 | **监控点**：2026/2027会期是否有新修正案（该法域每年会期均可能再修） | leginfo（leginfo.legislature.ca.gov）查最新chaptered text |
 
-| **SB 1000（CAITA 修正案）** | **监控点**：签署/否决状态（州长须 2026-09-30 前签署或否决，否则自动成为法律并即时生效）；签署后取得章号 | leginfo 法案历史页 https://leginfo.legislature.ca.gov/faces/billHistoryClient.xhtml?bill_id=202520260SB1000 |
+| **AB 2713（CAITA §22757.3.1 修正案）** | **已终局**：2026-09-30 州长签署，**Chapter 856, Statutes of 2026**，2027-01-01 operative；检测范围扩大到任何关联来源数据、新增不合规数据安全港、不得剥离加技术可行限定 | leginfo 历史页 https://leginfo.legislature.ca.gov/faces/billHistoryClient.xhtml?bill_id=202520260AB2713 |
+| **SB 1000（CAITA 修正案）** | **已核验：2026-09-30 州长签署，Chapter 861, Statutes of 2026，紧急法案即时生效**；后续监控点：2027/2028 会期是否有再修正案与执法口径 | leginfo 法案历史页 https://leginfo.legislature.ca.gov/faces/billHistoryClient.xhtml?bill_id=202520260SB1000 |
 
 | BOT Act（B&P Code §§17940–17943） | 是否修订；§17941的意图、目的和披露抗辩是否仍为现行文本 | leginfo SB 1001 chaptered；`sources/CA-SB1001-BOT-Act-chaptered.md` |
 
@@ -70,7 +71,7 @@
 
 | SB 896／AB 3030 | 州政府服务/福利通信及患者临床信息通信披露条款是否修订；人审例外是否变化 | leginfo chaptered；`sources/CA-SB896-chaptered.md`、`CA-AB3030-chaptered.md` |
 
-| **AB 1609（客服机器人）** | **监控点**：截至2026-09-22为Enrolled、待州长处理；签署/否决/未签署成法及法定生效日须分别核验 | leginfo历史页及`references/sources/CA-AB1609-enrolled.md` |
+| **AB 1609（客服机器人）** | **已章化（Chapter 733, 2026-09-28 签署），生效日已核定为 2027-01-01**（章化文本无 operative／urgency 条款，依加州宪法第四条第 8 款(c)(1) 默认规则推算；法案自身以 2027-01-01 为存量基线）；后续监控实施细目与执法口径 | leginfo历史页及`references/sources/CA-AB1609-enrolled.md`（chaptered 版待入库） |
 
 | 联邦层面动态 | 联邦AI披露立法是否推进、是否涉及preemption | congress.gov（按需） |
 
@@ -88,7 +89,7 @@
 
 |----------|------|----------|
 
-| 2026-09-30 | 加州 SB 1000 签署/否决截止日；州长未行动则自动成为法律并即时生效（紧急法案） | 加州 covered provider |
+| 2027-01-01 | 加州 SB 1119 对 §22602 的修订及 §21811 生效；SB 1050 合成表演者广告规则生效；AB 2713 版 large online platform 义务同日 operative | 加州陪伴型聊天机器人运营者、广告创作者与广告媒介、大型网络平台 |
 
 | 2026-12-02 | 欧盟Art. 111(4)过渡期届满：2026-08-02前投放市场的系统须完成Art. 50(2)合规；新深度伪造/CSAM禁止条款适用 | 欧盟provider（存量系统） |
 
@@ -104,9 +105,23 @@
 
 
 
+## 覆盖发现检索矩阵（触发式深度核验用，2026-09-30）
+
+> 使用条件：仅当用户要求「最新/当前/有没有新规/重新核验」或按「按最新法规重新解读」提出要求时（SKILL.md 阶段3「触发式深度核验」）。**常规报告不执行本矩阵、不得声称做过覆盖发现。**
+
+**加州**——官方来源：leginfo bill search / bill history / bill text / bill status；California Code 对 B&P Code §§22757–22757.6 的最新文本；州长签署/否决/chaptered 状态页。检索词：California AI Transparency Act、CAITA、22757、system provenance、provenance data、generative artificial intelligence、large online platform、AI detection tool、widely adopted specifications。保留 introduced / amended / passed / enrolled / presented to Governor / chaptered / vetoed 全状态记录；候选项须记法案编号、会期、最新版本、送州长日期、chapter 号、operative 日期、修改的法典条款。**已裁定排除项**（2026-09-30 用户裁定，目的域不同：防灾难性风险/选举诚信，非内容标识与场景披露；命中时按排除理由跳过、不重新评估）：SB 53（TFAIA，Ch. 138，§§22757.10 起）、选举类法族（AB 2355 生效／AB 2839、AB 2655 联邦法院阻止中／AB 730 待核）、州长行政令（2026-09-18 AI 安全专家委员会）。**★核验纪律（2026-10-01 新增）**：leginfo 的 billHistory／billStatus 页**不加参数时可能返回陈旧缓存**（本次核 AB 2713 曾缺最后两行「Approved by the Governor」「Chaptered by Secretary of State」）；核签署/章化状态**一律加 `&rev=1` 取新页**，或交叉核 gov.ca.gov 州长签署页。
+
+**欧盟**——官方来源：EUR-Lex（AI Act、修正条例、勘误、授权/实施文件）；European Commission Digital Strategy / AI Office；AI Board 官方文件；Code of Practice 官方版本与充分性意见。检索词：Regulation (EU) 2024/1689、Article 50、AI-generated content transparency、Digital Omnibus、corrigendum、delegated act、implementing act、Code of Practice、AI Board。候选项须区分条例／委员会指南／行为准则／委员会意见／AI Board 结论／成员国配套规则，不得统称「欧盟新法规」。
+
+**中国大陆**——官方来源：中国政府网；国家网信办；全国标准信息公共服务平台；算法备案与主管部门正式公告。检索词：深度合成、生成式人工智能、人工智能生成合成内容标识、GB 45438-2025、配套指引／实施细则／修改单／替代标准／正式执法口径。
+
+**处置纪律**：候选逐项回官方原文核验（二手来源仅作线索）→ 按五分类处置（现行有约束力／已通过待生效／待决法案／非约束性指南／无影响或无法判断）→ 新发现法规报用户裁定是否入库，不得自行入库 → 报告「时效核验说明」节写明核验日期、法域、检索范围与发现结论（含负结论）。
+
 ## 核验输出格式
 
 
 
 每部法规一行：「{法规名}：现行有效/有修订（说明），核验于{日期}，来源：{官方URL}」。发现与规则库不一致的，以官方原文更新规则库（同步更新元数据头last_verified）并在报告中说明变更。
+
+待决／待生效法案行：「{法案名}：待决（Enrolled，{送州长日期}送州长；条文载明{operative 日期} operative），核验于{日期}，来源：{官方URL}」或「{法案名}：已章化待生效（Chapter {N}，{生效日}生效），核验于{日期}，来源：{官方URL}」。待决法案不得写成现行义务（门禁⑯/⑱/W-18 同向）。
 

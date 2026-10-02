@@ -46,10 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lookups import ab1609_baseline, forward_nodes_within, sb1000_baseline  # noqa: E402
 from resolve_triggers import (
     _a3_generates,
-    cross_check_b13_expressive_work_gate,
-    cross_check_b13_gate,
     cross_check_capability_modality,
-    cross_check_chat_confirmation,
     cross_check_derived_keys,
     cross_check_scale,
     china_connection_points,
@@ -122,6 +119,14 @@ def relevant_b10_values(answers: dict) -> list[str]:
         values.extend(B10_AD_VALUES)
     return values
 
+# SB1000 开关占位：加州 CAITA 条行（§§22757–22757.6）的「效力状态」不写死，渲染时按
+# answers["SB1000_status"] 经 lookups.sb1000_baseline() 的 status_label 填充（同源于
+# 「〇、效力状态开关」）。2026-10-01 修：该行原硬编码「已生效（2026-09-30）」，与
+# SB1000_status 无关，待签署/否决态下与其下的 SB 1000 状态行自相矛盾。
+# ★本行名称与填出的状态文本刻意不含「CAITA」「修正案」——W-26 的信号域按「含 SB 1000 且含
+#   CAITA／修正案」取行，若本行落入信号域将与其状态行混叠。
+SWITCH_PLACEHOLDER = "__SB1000_SWITCH__"
+
 # 各法域效力核验记录表的法规行（机械化，来自各自规则库覆盖范围）
 VERIFY_ROWS = {
     "中国大陆": [
@@ -136,7 +141,7 @@ VERIFY_ROWS = {
         ("《AI生成内容透明度行为准则》（CoP）", "非约束性准则；按报告日核验版本与签署状态"),
     ],
     "加州": [
-        ("B&P Code §§22757–22757.6（SB 942 经 AB 853 修正）", "已生效（2026-08-02）"),
+        ("B&P Code §§22757–22757.6", SWITCH_PLACEHOLDER),
     ],
 }
 
@@ -182,8 +187,8 @@ def pending_facts(answers: dict) -> list[tuple[str, str, str]]:
     if str(answers.get("B3a", "")).strip() == "不确定":
         rows.append(
             (
-                "产品 monthly visitors or users 是否超100万（统计地域、窗口和去重方法待核）",
-                "加州 covered provider 主体门槛是否达到",
+                "产品 monthly visitors or users 量级档位未确认（统计地域、窗口和去重方法待核）",
+                "加州 covered provider 适用范围的规模事实是否可核（SB 1000 生效后已无用户量门槛，规模仅用于报告描述与平台量级校验）",
                 "业务方（系统访客/用户统计详情）/统计报表与口径说明",
             )
         )
@@ -191,7 +196,7 @@ def pending_facts(answers: dict) -> list[tuple[str, str, str]]:
         rows.append(
             (
                 "B3a统计详情（访客/用户、地域、周期、去重和原始数值）缺失",
-                "加州 covered provider 100万门槛的统计口径是否可审计",
+                "产品规模基线（访客/用户、地域、周期、去重）的统计口径是否可审计（用于报告规模描述与平台量级校验）",
                 "业务方（产品/运营数据）/统计报表与口径说明",
             )
         )
@@ -241,7 +246,7 @@ def pending_facts(answers: dict) -> list[tuple[str, str, str]]:
         rows.append(
             (
                 "是否通过网站或应用向他人提供模型权重或源码下载",
-                "加州 GenAI hosting platform 主体是否成立（§22757.1(g)）",
+                "加州 GenAI hosting platform 主体是否成立（§22757.1(h)）",
                 "业务方（官网/下载入口）/产品与法务确认",
             )
         )
@@ -327,18 +332,6 @@ def pending_facts(answers: dict) -> list[tuple[str, str, str]]:
             "AB 1609如生效后的主体门槛是否达到",
             f"财务与法务/{recheck.get('recheck_by', '下一财年数据可得后')}",
         ))
-
-    # agent2（2026-09-28）：4a 前置分流——存在作品广告时，(d)(4) 例外两要件待核
-    b13 = answers.get("B13")
-    if isinstance(b13, dict):
-        ew_present = b13.get("expressive_work_ad_present")
-        role = b13.get("role")
-        if ew_present in {"yes", "unknown"} and role in {"creator", "both"}:
-            rows.append((
-                "表现性作品例外两要件（是否为作品广告＋用法是否与作品本体内一致）",
-                "加州合成表演者广告披露义务是否因 §17610(d)(4) 例外不适用",
-                "广告制作团队/广告成片与作品本体素材",
-            ))
 
     if not rows:
         rows.append(("（本次无不确定项，无需待核）", PLACEHOLDER, PLACEHOLDER))
@@ -481,7 +474,6 @@ def render(answers: dict, report_name: str) -> str:
 
     session_date = str(answers.get("session_date", "")).strip() or "{待填：日期}"
     lines: list[str] = []
-
     # agent2（2026-09-28）：交付偏好（A8）读取与默认标志。
     # 报告配置只能来自两条合法路径：A8 采集键，或 defaults_applied 标志＋批注留痕；
     # 不存在第三条路（阶段4 现场弹窗追问）。
@@ -498,18 +490,17 @@ def render(answers: dict, report_name: str) -> str:
     else:
         footnote_pref = "否"
         defaults_applied.append("footnote_original_text")
-    lines.append(
-        f"<!-- agent2-report-config: language={report_language}; "
-        f"footnote_original_text={footnote_pref}; "
-        f"defaults_applied={','.join(defaults_applied) if defaults_applied else 'none'} -->"
-    )
 
     lines.append(f"# {PLACEHOLDER}AI透明度合规义务清单（{'／'.join(jurisdictions)}）")
     lines.append("")
     lines.append("<!-- 本骨架由 scripts/build_skeleton.py 生成：只含表头、行主键与占位符，")
     lines.append(f"     不构成任何法律定性。来源答案：{report_name}。生成后请人工补齐 `{{待填：…}}`。 -->")
     lines.append("")
-    lines.append(f"> 生成日期：{session_date} ｜ 效力核验日期：{{待填：日期}}")
+    lines.append(
+        f"<!-- agent2-report-config: language={report_language}; "
+        f"footnote_original_text={footnote_pref}; "
+        f"defaults_applied={','.join(defaults_applied) if defaults_applied else 'none'} -->"
+    )
     lines.append("")
 
     # 报头·临近节点提示（独立块形态）：仅当生成日距前瞻节点 ≤60 天时输出，
@@ -652,6 +643,9 @@ def render(answers: dict, report_name: str) -> str:
     lines.append("|------|----------|----------|----------|")
     for juris in jurisdictions:
         for name, status in VERIFY_ROWS[juris]:
+            if status == SWITCH_PLACEHOLDER:
+                _base = sb1000_baseline(str(answers.get("SB1000_status", "已签署")))
+                status = _base.get("status_label") or _base["annotation"]
             lines.append(f"| {name} | {status} | {session_date} | {PLACEHOLDER} |")
     if "加州" in jurisdictions:
         chat_status = derive_b5b_chat_status(answers)
@@ -673,7 +667,7 @@ def render(answers: dict, report_name: str) -> str:
                 f"{session_date} | {PLACEHOLDER} |"
             )
         # SB 1000 行由效力状态开关机械决定（同源于 lookups.py）
-        status_raw = answers.get("SB1000_status", "不确定")
+        status_raw = answers.get("SB1000_status", "已签署")
         baseline = sb1000_baseline(str(status_raw))
         lines.append(
             "| 加州 SB 1000（CAITA 修正案） | "
@@ -681,7 +675,7 @@ def render(answers: dict, report_name: str) -> str:
             "https://leginfo.legislature.ca.gov/faces/billHistoryClient.xhtml?bill_id=202520260SB1000 |"
         )
         if str(status_raw).strip() in {"", "不确定"}:
-            lines.append("**待核事实**：SB 1000 签署/否决状态未采集，不能默认按待签署处理；应当联网核验后确定义务基准。")
+            lines.append("**待核事实**：SB 1000 已签署生效（2026-09-30）；若审计数据仍记「待签署」，联网核验后按已签署/超期自动生效处理。")
         lines.append("")
         # 正文禁 blockquote（E-04）：改普通加粗段；且不写内部脚本名（属报告外实现细节）。
         # 措辞不得新引入「效力核验表未登记」的法规名/条号——否则本行会触发 W-14（覆盖率）。
@@ -715,12 +709,25 @@ def render(answers: dict, report_name: str) -> str:
     # 具名占位使骨架态即满足条目存在性，缺项不再靠记忆。
     lines.append(f"- **回填确认记录**：{PLACEHOLDER}")
     if defaults_applied:
-        # agent2（2026-09-28）：交付偏好缺键时的默认采用留痕（check_report 一致性检查锚点）。
+        # agent2（2026-09-28）：交付偏好缺键时的默认采用留痕（check_report W-28 一致性检查锚点）。
         lines.append(
             f"- **交付偏好默认采用记录**：{('、'.join(defaults_applied))} 未采集（用户跳过），"
             "按默认规则执行（纯中文＋正文以条号援引）；如需调整请在报告定稿前告知。"
         )
     lines.append(f"- {PLACEHOLDER}")
+    lines.append("")
+    # 报头声明（2026-10-02 用户裁定：整块报头元数据——生成日期／效力核验日期、依据、
+    # 范围声明、法规时效——改由批注承载，正文与报头均不保留）。骨架报头不再输出该块，
+    # 此处给出承载位与占位，以免成稿漏项。锚定文档主标题，见 scripts/annotations_to_docx_comments.py。
+    lines.append("### 5. 报头声明（生成日期、效力核验日期、依据、范围声明、法规时效）")
+    lines.append(f"- 生成日期：{session_date} ｜ 效力核验日期：{PLACEHOLDER}")
+    lines.append(f"- 范围声明（每份报告必含）：{PLACEHOLDER}（照搬 modeA-questionnaire 的范围声明原文）")
+    lines.append(f"- 依据：{PLACEHOLDER}")
+    lines.append(
+        f"- 法规时效声明：本清单知识截止于 {PLACEHOLDER}；加州义务按 SB 1000 生效版撰写"
+        "（2026-09-30 州长签署，紧急法案即时生效；Chapter 861, Statutes of 2026）。"
+        "如遇后续修订，请以最新官方文本为准，并可提示 agent「按最新法规重新解读」。"
+    )
     lines.append("")
 
     return "\n".join(lines) + "\n"
@@ -765,9 +772,6 @@ def main(argv: list[str] | None = None) -> int:
     # 须显式 --force 才放行——防矛盾答案静默进入骨架产物。
     try:
         problems = cross_check_scale(answers) + cross_check_capability_modality(answers)
-        problems += cross_check_b13_gate(answers)
-        problems += cross_check_b13_expressive_work_gate(answers)
-        problems += cross_check_chat_confirmation(answers)
         derived_errors, derived_warnings = cross_check_derived_keys(answers)
     except Exception as exc:  # noqa: BLE001 - 校验失败视为「未执行」，同样不静默放行
         problems = [f"（答案级交叉校验未执行：{exc}）"]
