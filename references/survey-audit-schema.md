@@ -98,20 +98,18 @@ agent 只能凭常识补判。要让这类校验可执行，输入必须是结�
 | `A4b` | 主动提供／被动可达／不确定 | 加州轮仅作事实记录，不得作为加州适用性判据 |
 | `A4c` | 按法域的字符串数组 | 法域连接点辅助因素；“未发现该因素”和“尚未核实”分开记录 |
 | `A6` | 中国大陆／欧盟／加州 | 只作**法域触发条件**；A4 恒为真、不得作触发条件（画像键 A3 等可作复合条件） |
-| `report_language` | `纯中文`／`中英双语` | **agent2（2026-09-28）交付偏好键**：A8①采集，模式A必填；缺省或答「不确定」时 `build_skeleton` 落 `defaults_applied` 标志并按默认「纯中文」执行；阶段4直接消费、不得骨架生成后弹窗补问；不参与任何法律判定 |
-| `footnote_original_text` | `是`／`否` | **agent2（2026-09-28）交付偏好键**：A8②采集，模式A必填；缺省或答「不确定」时 `build_skeleton` 落 `defaults_applied` 标志并按默认「否（仅正文以条号援引）」执行；不参与任何法律判定 |
+| `report_language` | `纯中文`／`中英双语` | **agent2（2026-09-28）交付偏好键（A8①）**：模式A必填；缺省或「不确定」时 `build_skeleton` 落 `defaults_applied` 留痕，按默认（纯中文）执行 |
+| `footnote_original_text` | `是`／`否` | **agent2（2026-09-28）交付偏好键（A8②）**：模式A必填；缺省或「不确定」时同上，按默认（否）执行 |
 | `B2` | 对象；必含`relationship`、`own_name`、`a`、`b` | `relationship`只认`自研`／`部分自研`／`授权接入`／`开源微调`／`其它`／`不适用`；`own_name`只认`是`／`否`／`不确定`。选`其它`时以`relationship_details`记录具体关系；`own_name=否`时以`presentation_details`记录品牌、界面和服务条款归属。`a`只认`是`／`否`／`不确定`／`不适用`，`b`只认`有且下游可依赖`／`无约定`／`不确定`／`不适用`。`自研`／`不适用`路径未展开追问时，`a`、`b`均落`不适用`；存在第三方生成来源时两项不得落`不适用`。不得把主问题事实只写进自由文本画像。 |
-| `B3a` | `≤100万`／`>100万`／`不确定` | covered provider 门槛摘要；不预设全球口径、统计周期或去重方法 |
+| `B3a` | `≤100万`／`>100万`／`不确定` | **产品规模基线摘要**（SB 1000 生效后 covered provider 已无月活门槛，§22757.1(e)；本键用于报告产品规模描述与 B4②(c) 平台量级校验基线）；不预设全球口径、统计周期或去重方法 |
 | `B3a_details` | 对象，可按需补充 | 记录 monthly visitors or users 的对象、地域、周期、去重、原始数值和证据来源；与A4(a)同口径时允许引用A4a_details |
 | `B4_2c_details` | 对象，平台候选成立时采集；**平台候选成立（`B4_2`＝`是`/`不确定`）且 `B4_2c` 给出确定量级（≠`不确定`）时，该对象及其 `recipient_users`/`creator_or_collaborator_users` 两字段为必填**（F-4，2026-09-23；**答案级**校验，落 `resolve_triggers.cross_check_scale`，退出码 1，与同族规则 `monthly_values` 同层） | 以一次性口径卡记录large online platform此前12个月逐月数据、接收分发内容用户、创作者/协作者用户及统计方法（统计地域按**全球口径**，加州本地数据不作门槛判断数）；与A4(a)/B3a相同的字段只填差异项（仅限三键共有字段；`recipient_users`/`creator_or_collaborator_users` 为LOP专有、不得以「差异项」为由省略）。两字段**只要求字段在位**，探数未果可落空数组并把 `threshold_interpretation` 记待核 |
 | `history` | 数组 | 旧答案＋更正时间＋原因；**不覆盖、不静默替换**（modeA-questionnaire「答案历史」★强制） |
 | `B10_current_practices` | 数组，取值域见下方「B10 取值域」；含`尚未实施`表示用户明确回答未实施；键缺位或空数组按`not_collected`处理；**仅 A3 含生成模态（非空数组）的产品采集** | 现状盘点（B10）：只用于报告「已实施 vs 待补齐」差距项；不得进入任何触发或法律适用派生 |
-| `B5b_chat_status` | `yes`／`no`／`unknown`；仅加州会话序列化 | 加州B12路由派生键；EU-only不生成、不序列化。**agent2（2026-09-28）收紧**：`yes` 须以「B5b 勾选对话＋`chat_confirmed=yes`」为要件；未经确认的对话勾选只能落 `unknown` |
-| `chat_confirmed` | `yes`／`no`／`unknown`；仅加州会话序列化 | **agent2（2026-09-28）**：B5b 对话信号显式确认键（同卡追加确认问落盘）；「B5b 勾选对话但本键缺键」为答案级矛盾（退出码1，`resolve_triggers` 交叉校验） |
+| `B5b_chat_status` | `yes`／`no`／`unknown`；仅加州会话序列化 | 加州B12路由派生键；EU-only不生成、不序列化 |
 | `B12` | 嵌套对象；定义、排除、误认真人和儿童事实分别落盘 | 陪伴型聊天机器人事实采集；不含法律定性单选 |
 | `B12_companion_status`／`B12_human_misidentification_status` | `yes`／`no`／`conditional` | agent依据定义条款与义务条款派生，用户不直接回答 |
 | `B13` | 嵌套对象；广告创作者、广告媒介、两者兼有及例外事实 | 合成表演者广告场景事实；入口均否即不采集后续字段 |
-| `B13_gate` | `两类都有`／`只自产广告`／`只投放第三方`／`都没有`／`不确定` | **agent2（2026-09-28）**：B13 广告活动总闸门（前置角色题）；「都没有」→`role=none` 整卡终止；闸门与 `B13.role` 的三向一致性由 `resolve_triggers` 交叉校验（退出码1） |
 | `standalone_voice_device` | B12对象内`yes`／`no`／`unknown` | 独立消费电子设备、扬声器及语音命令界面形态事实 |
 | `scale_facts` | 对象数组；每项含subject/geography/period/dedup_method/range/source/confirmed | 规范化规模事实集合；复用判断在问卷/呈现层执行，引擎只消费confirmed事实 |
 | `AB1609_status` | `pending_governor`／`signed_not_effective`／`effective`／`vetoed`／`became_law_without_signature` | 客服机器人规则的效力状态；签署不等于立即生效 |
@@ -122,7 +120,7 @@ agent 只能凭常识补判。要让这类校验可执行，输入必须是结�
 
 - B12的布尔事实统一为`yes|no|unknown`；`use_cases`只认：`陪伴/虚拟角色`、`客服`、`企业运营`、`基于源信息的生产力或分析`、`内部研究`、`技术支持`、`游戏功能`、`独立语音助手`、`其它`。选择`其它`时须以非空`use_cases_other`保存补充文本，未选择时不得落该键。`human_identity_signals`只认：`自称或暗示真人`、`使用真人姓名或照片`、`使用员工等真人身份`、`叙述第一人称真人经历`、`其它可能造成真人印象的线索`、`以上皆无`、`不确定`；`以上皆无`／`不确定`不得与其它值并存；选择其它线索时须以非空`human_identity_signals_other`保存补充文本，未选择时不得落该键。
 - `child_access_policy`只认`allowed|prohibited|not_established|unknown`；`child_access_after_age_check`只认`allow|block|undecided|unknown`；`access_context`只认`general|higher_education_only|workplace_only|mixed|other|unknown`。
-- B13的`role`为必填封闭值：`creator|advertising_medium|both|none|unknown`；`role=none|unknown`时对象只保留`role`，不得落卡内后续字段；`advertising_medium`路径只允许媒介法院命令字段，`creator`路径不得包含该字段，`both`才可并存两路字段。`prominent_use`为数组，只认`foreground_demonstration`、`narration_or_commercial_message`、`explain_or_respond_to_commercial_message`、`none`、`unknown`；`none`/`unknown`不得与其它值并存。其余布尔事实统一为`yes|no|unknown`。**agent2（2026-09-28）新增 creator 路径前置分流键 `expressive_work_ad_present`（4a：有无为作品本身做的广告，`yes|no|unknown`）**：`=no` 时 `expressive_work`／`use_consistent_within_work` 不得落键（(d)(4) 例外无适用对象）；`=yes/unknown` 才采集两键。**creator 路径的两项 §17610(d)(4) 要件分别具名落盘：`expressive_work`（该广告是否为表现性作品的广告）与 `use_consistent_within_work`（广告中用法是否与作品本体内的用法一致），不得再合并为单一 `expressive_work_exception` 键**；两键同为`yes`方构成 (d)(4) 例外；第 5 项（`expressive_work`）答`no`时第 6 项不问、`use_consistent_within_work`可不落键（缺键＝未采集，不得反推为`no`）。
+- B13的`role`为必填封闭值：`creator|advertising_medium|both|none|unknown`；`role=none|unknown`时对象只保留`role`，不得落卡内后续字段；`advertising_medium`路径只允许媒介法院命令字段，`creator`路径不得包含该字段，`both`才可并存两路字段。`prominent_use`为数组，只认`foreground_demonstration`、`narration_or_commercial_message`、`explain_or_respond_to_commercial_message`、`none`、`unknown`；`none`/`unknown`不得与其它值并存。其余布尔事实统一为`yes|no|unknown`。**creator 路径的两项 §17610(d)(4) 要件分别具名落盘：`expressive_work`（该广告是否为表现性作品的广告）与 `use_consistent_within_work`（广告中用法是否与作品本体内的用法一致），不得再合并为单一 `expressive_work_exception` 键**；两键同为`yes`方构成 (d)(4) 例外；第 5 项（`expressive_work`）答`no`时第 6 项不问、`use_consistent_within_work`可不落键（缺键＝未采集，不得反推为`no`）。
 - `AB1609_recheck.recheck_required=true`时，`recheck_reason`必须为`AB1609_revenue_near_threshold`，且`recheck_by`为非空复评节点；该对象不表示营收已越线。
 
 ### B10 取值域（★两皮肤落盘同值）
@@ -155,8 +153,6 @@ agent 只能凭常识补判。要让这类校验可执行，输入必须是结�
 | `B4_2c` | ≤100万／100万-200万／>200万／不确定 | 待核事实清单（不确定时）；档位以**全球口径**的该平台独立月用户判断，加州本地用户数不作门槛数（`ca-rules.md` §2） |
 | `B6` | 是／否／不确定 | 待核事实清单（不确定时）。**仅** Art. 50(4) 第 3 项（公共利益文本）三问的① |
 | `B6_deepfake` | 是／否／不确定 | **B-7（2026-09-23）**：欧盟 Art. 50(4) **第 1-2 项（深度伪造）**的独立落盘位；与 `B6` 同卡采集、各自落盘，互不门控（触发：A3含图像／音频／视频 且 A6含欧盟）。消费点：待核事实清单（不确定时）＋报告欧盟 Art. 50(4) 深伪支判定。「可辨识自然人」定义复用 `B13.identifiable_natural_person` **单一定义点** |
-| `B13.expressive_work_ad_present` | `yes`／`no`／`unknown` | **agent2（2026-09-28）**：B13 creator 路径 4a 前置分流；`=yes/unknown` 时在「待核事实清单」生成「表现性作品例外两要件（作品广告＋用法一致）」待核行；`=no` 时不生成该行、`expressive_work`／`use_consistent_within_work` 不落键 |
-| `report_language`／`footnote_original_text` | 见上方键定义 | **agent2（2026-09-28）**：骨架读取生成报告配置（语言、脚注形态）；缺键时 `build_skeleton` 落 `defaults_applied` 标志、按默认执行并在批注节要求留痕（`check_report` 一致性检查） |
 | `SB1000_status` | 待签署／已签署／否决／超期自动生效 | 效力核验记录 SB 1000 行与义务基准（同源 `lookups.sb1000_baseline`） |
 | `B10_current_practices` | 数组（见「B10 取值域」） | 现状盘点节「已实施 vs 待补齐」块（build_skeleton 机械生成：列已填报现状＋结构化待补齐提示）；A3 为空（纯分析型）或未采集 B10 时不生成该块 |
 

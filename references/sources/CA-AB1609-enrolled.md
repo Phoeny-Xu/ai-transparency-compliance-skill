@@ -3,6 +3,9 @@
 > Source: https://leginfo.legislature.ca.gov/faces/billTextClient.xhtml?bill_id=202520260AB1609&version=20250AB160992ENR
 > Retrieved: 2026-09-22 | California Legislative Information
 > This is a mechanical text extraction of the official bill page. Verify quotations against the source URL.
+> Chaptered 状态：**2026-09-28 州长签署、同年章化为 Chapter 733, Statutes of 2026**（章化版见 leginfo `billTextClient.xhtml?bill_id=202520260AB1609&rev=1`，Date Published 09/29/2026）。
+> 施行日：章化文本**无 operative 条款、无 urgency 条款**（Digest Key 为 `Vote: MAJORITY`），故依加州宪法第四条第 8 款(c)(1) 默认规则**自 2027-01-01 起施行**；法案自身亦以「as of January 1, 2027」为存量基线（§22627(e)(2)、§22628(e)）。
+> 与章化版一致性：本文件为 Enrolled（2026-09-04）本，与章化版**实质条文一致**（15 分钟接转人工、单次等候≤15 分钟、累计≤1 小时、罚则首次≤$5,000／其后每次≤$10,000、$5 亿全美年营收门槛、排除医院／专属业务线／消费者报告机构／受 GO 133·103-A 规制公用事业——已逐项比对）；chaptered 版本文待入库。
 
 ---
 

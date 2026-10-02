@@ -1,15 +1,15 @@
-# 加州规则库：California AI Transparency Act（现行：SB 942 经 AB 853；SB 1000 Enrolled 待签署——义务基准切换见「〇、效力状态开关」）
+# 加州规则库：California AI Transparency Act（现行：SB 1000 已签署生效〔2026-09-30 州长签署，紧急法案即时生效；Chapter 861, Statutes of 2026〕；AB 2713（§22757.3.1 修正）2026-09-30 州长签署（Chapter 856, Statutes of 2026），2027-01-01 operative——义务基准切换见「〇、效力状态开关」）
 
 > **场景规则交叉指引**：纯文本输出不落入CAITA特定图像/视频/音频义务，或主体未达CAITA门槛，不代表加州全部AI披露义务不适用。聊天机器人、政府服务、医疗临床通信、广告及BOT Act场景另读`references/ca-scenario-disclosure-rules.md`。
 
 ```yaml
-last_verified: 2026-09-05
-status: SB 1000 已通过待签署（Enrolled 2026-08-30 誊清；2026-09-02 下午3时提交州长）
-next_recheck_before: 2026-12-04
+last_verified: 2026-10-01
+status: SB 1000 已签署（2026-09-30 州长签署，紧急法案即时生效；Chapter 861, Statutes of 2026）
+next_recheck_before: 2026-12-30
 ```
 
-> 核验日期：2026-09-05
-> 来源层级：**官方 Enrolled 原文**——SB 1000 正式通过版（Enrolled）全文已打包至 `references/sources/CA-SB1000-enrolled.md`；现行法签署版仍见 `CA-SB942-chaptered.md`、`CA-AB853-chaptered.md`
+> 核验日期：2026-10-01
+> 来源层级：**官方签署状态核验**——SB 1000 已于 2026-09-30 经州长签署（leginfo 历史页「Approved by the Governor」），紧急法案即时生效，**Chapter 861, Statutes of 2026**；SB 1000 Enrolled 全文已打包至 `references/sources/CA-SB1000-enrolled.md`（已由 Chapter 861 章化，chaptered 版可据以核校/补包）；历史对照版见 `CA-SB942-chaptered.md`、`CA-AB853-chaptered.md`
 > 官方来源：
 > - SB 1000（2025–2026 会期，Enrolled 2026-08-30）：https://leginfo.legislature.ca.gov/faces/billHistoryClient.xhtml?bill_id=202520260SB1000
 > - SB 942（2024, Ch. 291）：https://leginfo.legislature.ca.gov/faces/billNavClient.xhtml?bill_id=202320240SB942
@@ -20,17 +20,17 @@ next_recheck_before: 2026-12-04
 
 ## 〇、效力状态开关（★每次使用前必读，决定义务基准）
 
-SB 1000 为 CAITA 修正案，**已通过议会、尚待州长签署**，属**紧急法案（urgency statute）**，一经签署或自动成为法律即**立即生效**。据此，本规则库**主存 SB 1000 生效版**，但**义务基准随签署状态切换**：
+SB 1000 为 CAITA 修正案，**已于 2026-09-30 经州长签署**（leginfo 历史页「Approved by the Governor」），属**紧急法案（urgency statute）**，一经签署即**立即生效**（Chapter 861, Statutes of 2026）。据此，本规则库**主存 SB 1000 生效版**，义务基准**已切换至「已签署」档**：
 
 | 州长状态（联网核验后写死） | 现行有效义务基准 | SB 1000 处理 |
 |---|---|---|
-| **待签署**（窗口期内未行动） | SB 942 经 AB 853 修正（现行法） | 标注「前瞻、非现行」 |
-| **已签署** | SB 1000 生效版 | 即时生效，SB 942 转历史对照 |
+| **待签署**（窗口期内未行动）（历史状态，留档） | SB 942 经 AB 853 修正（现行法） | 标注「前瞻、非现行」 |
+| **已签署（★当前，2026-09-30 州长签署，2026-10-01 核验）** | SB 1000 生效版 | 即时生效，SB 942 转历史对照 |
 | **否决**（议会未推翻） | SB 942 经 AB 853 修正（现行法） | 标注「未通过、不适用」 |
 | **超期未行动** | SB 1000 生效版 | 自动成为法律，即时生效 |
 
-> **签署期限（加州宪法 Art. IV §10(b)(2)）**：SB 1000 属「9 月 1 日前通过、9 月 1 日后在州长手中」情形，州长须于 **2026-09-30** 前签署或否决，否则法案**自动成为法律**（加州无 pocket veto）。
-> **当前状态（核验于 2026-09-05）**：待签署（Enrolled 2026-08-30；2026-09-02 提交州长）。**此状态下，现行有效义务仍以 SB 942 经 AB 853 修正为准**，SB 1000 生效版仅作前瞻变更提示；待签署或自动成为法律后，以 SB 1000 生效版为准。
+> **签署期限（加州宪法 Art. IV §10(b)(2)，已届）**：SB 1000 属「9 月 1 日前通过、9 月 1 日后在州长手中」情形，州长须于 **2026-09-30** 前签署或否决。**已核验：州长于 2026-09-30 签署，紧急法案即时生效**（未触发「超期自动成为法律」分支）。
+> **当前状态（核验于 2026-10-01）**：**已签署**（2026-09-30 州长签署，紧急法案即时生效；Chapter 861, Statutes of 2026）。**此状态下，现行有效义务以 SB 1000 生效版为准**，SB 942 经 AB 853 修正转历史对照；SB 1000 修订点不再作「前瞻」标注。
 > 报告生成时的处理规则见 `references/sb1000-diff.md` 与 SKILL.md §5 法域处理索引。
 
 ---
@@ -40,8 +40,8 @@ SB 1000 为 CAITA 修正案，**已通过议会、尚待州长签署**，属**�
 | 节点 | 内容 | 依据 |
 |------|------|------|
 | 2026-08-02 | 全章生效（现行法，SB 942 经 AB 853 修正） | §22757.6（AB 853 修正） |
-| 签署 / 2026-09-30 后自动 | **SB 1000 修订即时生效**（紧急法案） | SB 1000 SEC. 8 |
-| 2027-01-01 | large online platform 义务生效 | §22757.3.1(c) |
+| 2026-09-30 签署 | **SB 1000 修订即时生效**（紧急法案，州长签署） | SB 1000 SEC. 8；leginfo 历史页 |
+| 2027-01-01 | large online platform 义务生效（适用 AB 2713 版 §22757.3.1；AB 853 版同日被取代） | §22757.3.1(e) |
 | 2027-01-01 | GenAI hosting platform 义务生效 | §22757.3.2(b) |
 | 2028-01-01 | capture device manufacturer 义务生效，仅适用于 2028-01-01 起**首次在州内生产销售**的设备 | §22757.3.3(c)及(a) |
 | 2029-01-01 | 辅助技术字段（§22757.3(a)(1)(F)）生效；辅助技术限时豁免（§22757.5(b)）到期；§22757.4.1 专项罚则废止 | §22757.3(a)(1)(F)、§22757.5(b)、§22757.4.1(c) |
@@ -49,10 +49,10 @@ SB 1000 为 CAITA 修正案，**已通过议会、尚待州长签署**，属**�
 ## 二、义务主体与义务清单（双轨：现行法 / SB 1000 生效版）
 
 > **义务基准切换（★每次使用前必读，与「〇、效力状态开关」一致）**：
-> - **待签署/否决期**：报告正文义务详述用 **「现行法义务清单」（SB 942 经 AB 853 修正，见下方）**；SB 1000 修订点**集中**列一个「SB 1000 前瞻变更提示」块（逐条「现行→前瞻」对照，见 `references/sb1000-diff.md`），标注「待签署、未生效」，**不得散落正文逐条挂〔SB 1000 修订〕角标**。
-> - **已签署/超期自动成为法律**：报告正文改按 **「SB 1000 生效版义务清单」（下方 ### 1–5）**，SB 942 转历史对照。
+> - **待签署/否决期（非当前，仅作历史对照）**：报告正文义务详述用 **「现行法义务清单」（SB 942 经 AB 853 修正，见下方）**；SB 1000 修订点**集中**列一个「SB 1000 前瞻变更提示」块（逐条「现行→前瞻」对照，见 `references/sb1000-diff.md`），标注「待签署、未生效」，**不得散落正文逐条挂〔SB 1000 修订〕角标**。
+> - **已签署/超期自动成为法律（★当前，2026-09-30 州长已签署）**：报告正文改按 **「SB 1000 生效版义务清单」（下方 ### 1–5）**，SB 942 经 AB 853 修正转历史对照。
 
-### 现行法义务清单（SB 942 经 AB 853 修正）——待签署期正文基准
+### 现行法义务清单（SB 942 经 AB 853 修正）——历史对照（SB 1000 签署前基准）
 
 > 术语译法以 `references/glossary.md` 为准。以下条文据 SB 942（Ch. 291）＋ AB 853（Ch. 674）合并现行文本逐字转述（逐字依据 `references/sources/CA-SB942-chaptered.md`、`CA-AB853-chaptered.md`）。
 
@@ -78,11 +78,11 @@ SB 1000 为 CAITA 修正案，**已通过议会、尚待州长签署**，属**�
 
 > **本清单不含**辅助技术（assistive technology）条款、**不含**禁止虚假辅助技术陈述（§22757.3(d)）——此二者均为 SB 1000 新增，现行法没有。
 
-> **现行法口径的「多原因不触发分层表述」**（待签署期正文用，与 SB 1000 版 §1.1 规则同理但门槛不同）：主导原因（主体门槛）=「月访问量/用户未达 100 万（§22757.1(d)）→不构成 covered provider，全章义务不触发」；层级抗辩（输出模态）=「退一步，即便构成 covered provider，纯文本输出亦不落入 §22757.2/§22757.3（限图像/视频/音频）义务范围」。SB 1000 生效后，主导原因才改为「不在加州公开可访问（§22757.1(e)）」（见下方 §1.1）。
+> **现行法口径的「多原因不触发分层表述」**（历史对照，SB 1000 签署前正文用，与 SB 1000 版 §1.1 规则同理但门槛不同）：主导原因（主体门槛）=「月访问量/用户未达 100 万（§22757.1(d)）→不构成 covered provider，全章义务不触发」；层级抗辩（输出模态）=「退一步，即便构成 covered provider，纯文本输出亦不落入 §22757.2/§22757.3（限图像/视频/音频）义务范围」。SB 1000 生效后，主导原因才改为「不在加州公开可访问（§22757.1(e)）」（见下方 §1.1）。
 
 #### A2. Large online platform / GenAI hosting platform / Capture device manufacturer
 
-> 此三主体义务经 SB 1000 **未作修订**，现行法清单与 SB 1000 生效版**实质内容一致**，正文引用以 SB 1000 版对应小节（下方 ### 2、3、4）为准。注意定义条编号差异：现行法下 GenAI hosting platform 为 §22757.1(g)、large online platform 为 §22757.1(h)、capture device 为 §22757.1(b)(c)；SB 1000 重编号后为 §22757.1(h)(i)(c)(d)。实质义务条文（§22757.3.1/.3.2/.3.3）不变。
+> hosting/capture 两主体义务经 SB 1000 **未作修订**，正文引用以 SB 1000 版对应小节（下方 ### 2、3、4）为准。**large online platform 义务另经 AB 2713 修订（2026-09-30 州长签署、Chapter 856, Statutes of 2026，2027-01-01 起 operative）**：2027-01-01 起适用 AB 2713 版 §22757.3.1（AB 853 版平台义务同日被取代、从未独立执行），以 ### 2 下 AB 2713 版为准。注意定义条编号差异：现行法下 GenAI hosting platform 为 §22757.1(g)、large online platform 为 §22757.1(h)、capture device 为 §22757.1(b)(c)；SB 1000 重编号后为 §22757.1(h)(i)(c)(d)。实质义务条文（§22757.3.1/.3.2/.3.3）不变。
 
 #### A3. 罚则（现行法，§22757.4）
 
@@ -105,7 +105,7 @@ SB 1000 为 CAITA 修正案，**已通过议会、尚待州长签署**，属**�
 
 ---
 
-> **以下 ### 1–5 为 SB 1000 生效版义务清单（生效后正文基准）**；待签署期正文用上面的现行法清单。术语译法以 `references/glossary.md` 为准，条文均据 SB 1000 Enrolled 逐字原文转述。
+> **以下 ### 1–5 为 SB 1000 生效版义务清单（★当前正文基准）**；现行有效义务以本清单为准。术语译法以 `references/glossary.md` 为准，条文均据 SB 1000 Enrolled 逐字原文转述（已由 Chapter 861 章化，chaptered 版可据以核校）。
 
 ### 1. Covered provider（受管辖的提供者）
 
@@ -153,15 +153,15 @@ SB 1000 为 CAITA 修正案，**已通过议会、尚待州长签署**，属**�
 > **门槛统计口径（2026-09-23 用户裁定钉死）**：「此前 12 个月独立月用户超 200 万」按**全球口径**判断——与 §A1 covered provider 门槛**同一地理口径**（B4_2c／B4_2c_details 填**该平台全球范围**的独立月用户；**加州本地用户数仅作画像事实，不得作门槛判断数**）。
 > - **对象**：依本条法文为**平台级**（该内容传播平台自身的独立用户），不是 covered provider 的系统级用户数；平台内「接收分发内容用户／创作者·协作者用户」的区分仍按 `role-mapping.md` 环节④规模关要求，不得混为一个数字。
 > - **时间窗口与聚合**：依本条法文为「此前 12 个月逐月独立用户」；法条**未规定**是每月均达标、取平均值还是任一月达标，故不得用单一月活摘要替代逐月数据，详情缺失时按条件式处理（此点**不因地理口径钉死而消除**，仍列为待核事实）。
-> - **不得反向套用**：CAITA covered provider 的 100 万门槛与本地条 large online platform 的 200 万门槛**统计对象、时间窗口均不同**，即使地理口径一致也**不得互推**（前者构成不当然证明后者构成，反之亦然）。
+> - **不得反向套用**：CAITA covered provider 已于 SB 1000 **删除用户量门槛**（§22757.1(e) 仅「加州公开可访问」），与 large online platform 的 200 万门槛自不互推（后者统计对象、时间窗口亦不同）。
 
-**义务清单（§22757.3.1(a)(b)）**：
+**义务清单（AB 2713 版 §22757.3.1(a)–(e)，2027-01-01 起 operative；AB 853 版为历史对照）**：
 (1) 检测平台上分发内容中是否嵌入或附有**符合成熟标准制定组织广泛采纳规范**的来源数据；
 (2) 提供用户界面披露 system provenance data 可用性，清晰显著展示内容真实性/来源/修改历史信息，至少含：来源数据是否可用、创建或实质改变内容的 GenAI 系统或采集设备名称（如适用）、数字签名是否可用；
 (3) 允许用户以便捷方式查验全部可用 system provenance data（界面直接展示/提供含来源数据的下载/提供链接，三选一即可）；
 (4) 技术可行范围内，不得明知而剥离内容中符合广泛采纳规范的 system provenance data 或数字签名。
 
-> **§22757.3.1(a) 原文**：「(a) A large online platform shall do all of the following: (1) Detect whether any provenance data that is compliant with widely adopted specifications adopted by an established standards-setting body is embedded into or attached to content distributed on the large online platform. (2)(A) Provide a user interface to disclose the availability of system provenance data that reliably indicates that the content was generated or substantially altered by a GenAI system or captured by a capture device. (B) The user interface required by this paragraph shall make clearly and conspicuously available to users information sufficient to identify the content's authenticity, origin, or history of modification, including, but not limited to, all of the following: (i) Whether provenance data is available. (ii) The name of the GenAI system or capture device that created or substantially altered the content, if applicable. (iii) Whether any digital signatures are available. (3) Allow a user to inspect all available system provenance data that is compliant with widely adopted specifications adopted by an established standards-setting body in an easily accessible manner…」
+> **AB 2713 版 §22757.3.1（Enrolled 逐字核对，已由 Chapter 856 章化、2027-01-01 起适用）**：「(a) A large online platform shall do all of the following: (1) Detect whether any provenance data is embedded into, attached to, or otherwise associated with content distributed on the large online platform. (2)(A) Provide a user interface that reliably indicates whether any system provenance data or digital signature embedded into, attached to, or otherwise associated with content identifies the content as having been generated or substantially altered by a GenAI system or captured by a capture device. (B) The user interface required by this paragraph shall make clearly and conspicuously available to users information sufficient to identify the content's authenticity, origin, or history of modification, including, but not limited to, all of the following: (i) Whether provenance data is embedded into, attached to, or otherwise associated with the content. (ii) The name of the GenAI system or capture device that created or substantially altered the content, if applicable. (iii) Whether any digital signatures are embedded into, attached to, or otherwise associated with the content. (3) Allow a user to inspect any system provenance data embedded into, attached to, or otherwise associated with the content in an easily accessible manner. The large online platform may satisfy this requirement by any of the following means: (A) Displaying the system provenance data directly through the large online platform's user interface pursuant to paragraph (2). (B) Providing a link to an internet website or other application that displays the system provenance data, including a website or application operated by a third party. (C) Allowing a user to download any provenance data embedded into, attached to, or otherwise associated with the content, subject to any applicable federal copyright laws, in a format that cannot be easily embedded into, attached to, or associated with unrelated content. (b) The obligations set forth in subdivision (a) shall not be construed to require a large online platform to maintain, display, or allow a user to download personal information. (c) A large online platform shall not, to the extent technically feasible, knowingly strip any system provenance data or digital signature from content uploaded to, distributed on, or downloaded from the large online platform. (d) This section does not require a large online platform to take any action with respect to provenance data, system provenance data, or digital signatures that are not compliant or interoperable with widely adopted specifications issued by an established standards-setting body. (e) This section shall become operative on January 1, 2027.」
 
 ### 3. GenAI hosting platform（生成式人工智能系统托管平台）——2027-01-01 生效
 
@@ -173,7 +173,7 @@ SB 1000 为 CAITA 修正案，**已通过议会、尚待州长签署**，属**�
 
 > **§22757.3.2(a) 原文**：「(a) A GenAI system hosting platform shall not knowingly make available a GenAI system that does not place disclosures pursuant to Section 22757.3.」
 
-> **⚠️ 报告撰写区分（★强制，与门禁⑯/⑱协同）**：GenAI hosting platform 属「已落入定义、义务待生效」状态——现行法定义（§22757.1(g)）即可判定构成，但§22757.3.2 义务**延缓至 2027-01-01 生效**。报告须将其与「covered provider 主体资格未达之不触发」**分列**，单列标注「已适用、义务待生效（2027-01-01）」，**不得并列为同一「当前不触发」**。同理适用于 large online platform（§22757.3.1，2027-01-01）、capture device manufacturer（§22757.3.3，2028-01-01）——三者定义均已可落入、仅义务延缓。SB 1000 前瞻变更提示仅附着 covered provider 类（定义已变），不得外溢至 hosting platform / large online platform / capture device manufacturer 类（其定义不受 SB 1000 影响）。
+> **⚠️ 报告撰写区分（★强制，与门禁⑯/⑱协同）**：GenAI hosting platform 属「已落入定义、义务待生效」状态——现行法定义（§22757.1(g)）即可判定构成，但§22757.3.2 义务**延缓至 2027-01-01 生效**。报告须将其与「covered provider 主体资格未达之不触发」**分列**，单列标注「已适用、义务待生效（2027-01-01）」，**不得并列为同一「当前不触发」**。同理适用于 large online platform（§22757.3.1，2027-01-01）、capture device manufacturer（§22757.3.3，2028-01-01）——三者定义均已可落入、仅义务延缓。**SB 1000 修订仅涉 covered provider 定义（含新增辅助技术条款），不影响 hosting platform / large online platform / capture device manufacturer 的定义**；「前瞻变更提示」块机制已随 SB 1000 生效取消。
 
 ### 4. Capture device manufacturer（采集设备制造商）——2028-01-01 生效
 
@@ -229,7 +229,8 @@ SB 1000 为 CAITA 修正案，**已通过议会、尚待州长签署**，属**�
 
 ## 五、效力核验要点（每次使用前复核）
 
-1. **SB 1000 签署状态**（监控点）：州长是否已于 2026-09-30 前签署/否决；超期则自动成为法律。来源：leginfo 法案历史页 https://leginfo.legislature.ca.gov/faces/billHistoryClient.xhtml?bill_id=202520260SB1000
-2. leginfo 上 B&P Code §§22757–22757.6 是否有新修正案（2026 会期后续法案）。
-3. AI Omnibus 之外的联邦层面立法（如联邦 AI 披露法案）是否抢占（preemption）动态。
-4. C2PA 等标准组织规范更新是否影响「广泛采纳规范」的认定。
+1. **SB 1000 签署状态（已核验，2026-10-01）**：2026-09-30 州长签署，**Chapter 861, Statutes of 2026**，紧急法案即时生效；后续监控点＝2027/2028 会期是否有再修正案与执法口径。来源：leginfo 法案历史页 https://leginfo.legislature.ca.gov/faces/billHistoryClient.xhtml?bill_id=202520260SB1000
+2. **AB 2713 状态（已核验，2026-10-01）**：2026-09-30 州长签署，**Chapter 856, Statutes of 2026**；2027-01-01 起 §22757.3.1 按 AB 2713 版 operative；后续监控＝会期再修正案。来源：leginfo AB 2713 历史页 https://leginfo.legislature.ca.gov/faces/billHistoryClient.xhtml?bill_id=202520260AB2713
+3. leginfo 上 B&P Code §§22757–22757.6 是否有新修正案（2026 会期后续法案）。
+4. AI Omnibus 之外的联邦层面立法（如联邦 AI 披露法案）是否抢占（preemption）动态。
+5. C2PA 等标准组织规范更新是否影响「广泛采纳规范」的认定。

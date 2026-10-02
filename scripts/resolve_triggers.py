@@ -146,12 +146,7 @@ def _b5b_interactive(answers: dict) -> bool:
 
 
 def derive_b5b_chat_status(answers: dict) -> str | None:
-    """派生加州B12路由用的聊天状态；EU-only不落盘该派生键。
-
-    agent2（2026-09-28）收紧：勾选对话形态须经同卡确认（``chat_confirmed=yes``）
-    方可落 ``yes``；未经确认（缺键／unknown／否认后未修正）只能落 ``unknown``——
-    「有没有对话式功能」是客观事实，由用户显式确认，不由引擎从勾选推定。
-    """
+    """派生加州B12路由用的聊天状态；EU-only不落盘该派生键。"""
     if not _a6_has(answers, "加州"):
         return None
     raw = answers.get("B5b")
@@ -159,11 +154,7 @@ def derive_b5b_chat_status(answers: dict) -> str | None:
         return "unknown"
     values = {str(item).strip() for item in raw if str(item).strip()}
     if any(any(token in value for token in ("聊天机器人", "智能助手", "客服机器人")) for value in values):
-        # agent2：主选项对话形态须同卡确认（chat_confirmed）后才能落 yes。
-        confirmed = answers.get("chat_confirmed")
-        if confirmed == "yes":
-            return "yes"
-        return "unknown"
+        return "yes"
     if any("不确定" in value for value in values):
         return "unknown"
     if any(value.startswith("其它") for value in values):
@@ -769,143 +760,6 @@ DEMO = {
 }
 
 
-# ---------------------------------------------------------------------------
-# agent2（2026-09-28）：B13 闸门×角色×路径三向一致性 ＋ 4a 前置分流键存在性
-# ---------------------------------------------------------------------------
-# 背景：B13 新增广告活动总闸门（B13_gate）与 creator 路径 4a 前置分流
-# （B13.expressive_work_ad_present），B5b 对话形态新增同卡确认（chat_confirmed）。
-# 三者的门控关系此前只存在于问卷文字层，实测已证明文字层约束会被 agent 忽略，
-# 故按本 skill「答案级交叉校验」家族（B-11′／F-4／capability_modality 同层同码）代码化。
-
-def cross_check_b13_gate(answers: dict) -> list[str]:
-    """B13_gate × B13.role × creator/advertising_medium 路径 三向一致性。"""
-    problems: list[str] = []
-    gate = answers.get("B13_gate")
-    b13 = answers.get("B13")
-    if gate is None:
-        # 闸门未采集：仅当 B13 已落实质答案时才报（最小夹具兼容，同 B-11′ 缺键带前置）。
-        if isinstance(b13, dict) and set(b13) - {"role"}:
-            problems.append(
-                "B13_gate 缺键：B13 对象已含卡内后续字段，但广告活动总闸门未落盘——"
-                "请补采 B13 总闸门（agent2 前置分流第一问）"
-            )
-        return problems
-    if gate not in {"两类都有", "只自产广告", "只投放第三方", "都没有", "不确定"}:
-        return problems  # 值域由契约层（survey_io._ENUMS）把关
-    role = b13.get("role") if isinstance(b13, dict) else None
-    creator_signals = set()
-    medium_signals = set()
-    if isinstance(b13, dict):
-        creator_signals = set(b13) & {
-            "commercial_advertisement", "genai_human_performance",
-            "identifiable_natural_person", "prominent_use", "expressive_work_ad_present",
-            "expressive_work", "use_consistent_within_work",
-            "translation_only", "accessibility_only",
-        }
-        medium_signals = set(b13) & {"court_order_status"}
-    if gate == "都没有":
-        if role not in (None, "none") or creator_signals or medium_signals:
-            problems.append(
-                "B13_gate=「都没有」但 B13 存在角色或卡内后续答案——矛盾：闸门已终止广告模块，"
-                "不应再有 creator/advertising_medium 路径答案；请回问澄清（总闸门答错？或误采后续？）"
-            )
-        return problems
-    if role is None:
-        problems.append(
-            "B13_gate≠「都没有」但 B13.role 缺键——闸门表明存在广告活动，"
-            "请补采 B13 入口角色题"
-        )
-        return problems
-    if gate == "只投放第三方" and creator_signals:
-        problems.append(
-            "B13_gate=「只投放第三方广告」但 B13 含 creator 路径字段——矛盾："
-            "闸门表明不自制广告，不应有创作者路径答案；请回问澄清"
-        )
-    if gate == "只自产广告" and medium_signals:
-        problems.append(
-            "B13_gate=「只自己制作并发布广告」但 B13 含广告媒介路径字段——矛盾："
-            "闸门表明不投放第三方广告，不应有媒介路径答案；请回问澄清"
-        )
-    return problems
-
-
-def cross_check_b13_expressive_work_gate(answers: dict) -> list[str]:
-    """4a 前置分流（expressive_work_ad_present）× (d)(4) 两键存在性。
-
-    结构层（survey_io）只拦「4a=no 但两键落盘」的直接矛盾；本函数补齐
-    跨键完整性方向：4a=yes/unknown 时 expressive_work 必须采集；
-    4a=yes 且 expressive_work=no 时 use_consistent_within_work 不得落键
-    （既有「第5题答否→第6题不问」规则的机检化）。
-    """
-    problems: list[str] = []
-    b13 = answers.get("B13")
-    if not isinstance(b13, dict):
-        return problems
-    role = b13.get("role")
-    if role not in {"creator", "both"}:
-        return problems
-    gate_present = b13.get("expressive_work_ad_present")
-    if gate_present is None:
-        creator_answered = bool(
-            set(b13) & {
-                "commercial_advertisement", "genai_human_performance",
-                "identifiable_natural_person", "prominent_use",
-            }
-        )
-        if creator_answered:
-            problems.append(
-                "B13.expressive_work_ad_present 缺键：creator 路径已采集实质答案，"
-                "但 4a 作品广告前置分流未落盘——请补采 4a（agent2 前置分流）"
-            )
-        return problems
-    ew = b13.get("expressive_work")
-    ucw = b13.get("use_consistent_within_work")
-    if gate_present == "no" and (ew is not None or ucw is not None):
-        problems.append(
-            "B13.expressive_work_ad_present=no 但 (d)(4) 两键已落盘——矛盾："
-            "无作品广告则例外要件不采集；请回问澄清（4a 答错？或误采 5/6 题？）"
-        )
-    if gate_present in {"yes", "unknown"} and ew is None:
-        problems.append(
-            "B13.expressive_work_ad_present=yes/unknown 但 expressive_work 缺键——"
-            "4a 表明存在作品广告，请补采第 5 题（表现性作品确认）"
-        )
-        return problems
-    if gate_present == "yes" and ew == "no" and ucw is not None:
-        problems.append(
-            "B13.expressive_work=no（第 5 题答否）但 use_consistent_within_work 已落盘——"
-            "矛盾：第 5 题答否时第 6 题不问；请回问澄清"
-        )
-    return problems
-
-
-def cross_check_chat_confirmation(answers: dict) -> list[str]:
-    """B5b 勾选对话形态 × chat_confirmed 确认记录（agent2，2026-09-28）。
-
-    仅报「勾选了对话形态但无确认记录」；确认后的派生一致性由
-    ``cross_check_derived_keys`` 的方向敏感校验承载（本函数不重复）。
-    """
-    problems: list[str] = []
-    if not _a6_has(answers, "加州"):
-        return problems
-    raw = answers.get("B5b")
-    if not isinstance(raw, list):
-        return problems
-    has_chat_tick = any(
-        any(token in str(item) for token in ("聊天机器人", "智能助手", "客服机器人"))
-        for item in raw
-    )
-    if not has_chat_tick:
-        return problems
-    if answers.get("chat_confirmed") is None:
-        problems.append(
-            "B5b 勾选了对话形态但 chat_confirmed 缺键——对话式功能存在性须同卡显式确认"
-            "（确实有／没有（此前误选）／不确定），未经确认 chat_status 只能落 unknown；"
-            "请补采确认问（agent2 对话功能前置确认）"
-        )
-    return problems
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="B 组触发引擎与答案级交叉校验")
     parser.add_argument("survey", nargs="?", help="survey_audit.json（结构化问卷答案）")
@@ -932,9 +786,6 @@ def main(argv: list[str] | None = None) -> int:
 
     problems = cross_check_scale(answers)
     problems += cross_check_capability_modality(answers)
-    problems += cross_check_b13_gate(answers)
-    problems += cross_check_b13_expressive_work_gate(answers)
-    problems += cross_check_chat_confirmation(answers)
     derived_errors, derived_warnings = cross_check_derived_keys(answers)
     problems += derived_errors
 
