@@ -36,8 +36,8 @@ HYPERLINK_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relations
 FOOTNOTE_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes"
 FOOTNOTE_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"
 FOOTNOTE_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-# 脚注相关字符/段落样式（python-docx 默认模板未定义，须自行补齐，
-# 否则编号不上标、脚注区不缩小字号）。2026-09-23 用户实测反馈后补入。
+# 脚注相关字符/段落样式（python-docx默认模板未定义，须自行补齐，
+# 否则编号不上标、脚注区不缩小字号）。
 FOOTNOTE_STYLE_DEFINITIONS = (
     '<w:style w:type="character" w:styleId="FootnoteReference">'
     '<w:name w:val="footnote reference"/>'
@@ -64,7 +64,7 @@ SPAN_TAG_RE = re.compile(
 COLOR_RE = re.compile(r"^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 RAW_URL_RE = re.compile(r"(?:https?://|mailto:)", re.IGNORECASE)
 
-# --- HTML 注释剥离（2026-09-19 修复；2026-09-19 迭代为跨行）------------------
+# --- HTML注释剥离 -----------------------------------------------------------
 # Markdown 源文件会夹带仅供 check_report.py 消费的 `<!-- lint:ignore ... -->`
 # 指令，以及 `<!-- 效力核验留痕 -->` 之类的内部注释；`build_skeleton.py` 的报头
 # 还会生成**两行**注释。这些属元数据，不应进入交付版 docx。
@@ -74,7 +74,7 @@ RAW_URL_RE = re.compile(r"(?:https?://|mailto:)", re.IGNORECASE)
 HTML_COMMENT_LINE_RE = re.compile(r"^\s*<!--.*-->\s*$", re.DOTALL)
 HTML_COMMENT_INLINE_RE = re.compile(r"<!--.*?-->")
 
-# --- H1 安全加固（2026-09-15）------------------------------------------------
+# --- H1链接安全 -------------------------------------------------------------
 # Markdown 显式链接 [label](target) 的 target 不经过 RAW_URL_RE（该正则只用于
 # 「裸 URL 自动识别」），会原样写入 docx 的外部超链接关系。若稿件含
 # javascript: / file: / data: 等 scheme，即构成注入面，故在入口加 scheme 白名单。
@@ -461,7 +461,7 @@ def _add_footnote_reference(paragraph, label: str, context: ConversionContext) -
     style = OxmlElement("w:rStyle")
     style.set(qn("w:val"), "FootnoteReference")
     rpr.append(style)
-    # 直接格式兜底（2026-09-23）：python-docx 默认模板的 styles.xml 不含
+    # 直接格式兜底：python-docx默认模板的styles.xml不含
     # FootnoteReference 字符样式，仅引用样式名时 Word 会忽略未知样式，
     # 编号遂以正文格式显示（不上标）。此处显式写入 vertAlign，不再依赖样式存在。
     vert_align = OxmlElement("w:vertAlign")
@@ -724,7 +724,7 @@ def _inject_footnotes(docx_path: Path, context: ConversionContext) -> int:
         content = {name: archive.read(name) for name in archive.namelist()}
     content["word/footnotes.xml"] = "".join(parts).encode("utf-8")
 
-    # 样式定义注入（2026-09-23）：python-docx 默认模板缺脚注相关样式，
+    # 样式定义注入：python-docx默认模板缺脚注相关样式，
     # 仅引样式名会静默退化为正文格式（编号不上标、脚注区不缩小字号）。
     # 这里补齐标准定义；run 级 vertAlign 仍保留，两层保证渲染一致。
     styles_name = "word/styles.xml"

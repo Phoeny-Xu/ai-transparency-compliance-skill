@@ -1,8 +1,7 @@
 # Regulation (EU) 2024/1689（AI Act）— Article 50 官方原文（excerpt）
 
 > 来源：EUR-Lex OJ L, 12.7.2024, ELI: reg/2024/1689/oj（官方OJ文本）
-> 入库日期：2026-08-12
-> 说明：AI Act主条例OJ合订本（144页）因体积过大未打包（见README）。本文件为用户提供的Art. 50逐字原文excerpt，供脚注引用与运行时核对；如需Art. 50以外条款，复核渠道为EUR-Lex ELI reg/2024/1689/oj。
+> 说明：本文件为Art. 50逐字原文excerpt，供脚注引用与运行时核对；如需其他条款，复核渠道为EUR-Lex ELI reg/2024/1689/oj。
 > 注意：以下第8–24行为OJ原始文本（2024/1689，OJ L 12.7.2024）。**Art. 50(7)已被简化版AI Act（即Digital Omnibus，Reg. (EU) 2026/1744，OJ L 24.7.2026）修订**；修订后文本见下方「Art. 50(7) 修订后文本」节，亦见eu-rules.md「三、Digital Omnibus」节。修订要点：50(7)由「AI Office鼓励促进准则」改为「委员会鼓励促进准则、并经AI Board意见评估准则充分性（删除委员会以实施法案批准准则的授权）」，属**程序性/机构性修订，不影响provider与deployer在Art. 50(1)–(6)项下的实体透明度合规义务**。本excerpt正文保留OJ原始50(7)文本（含"The AI Office shall…"）供逐字引用；凡涉现行有效义务，以修订后文本及eu-rules.md为准。consolidated文本依据：EUR-Lex CELEX 02024R1689-20260727。
 
 ## Article 50 — Transparency obligations for providers and deployers of certain AI systems

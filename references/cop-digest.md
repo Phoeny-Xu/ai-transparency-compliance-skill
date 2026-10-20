@@ -1,8 +1,7 @@
-# CoP 摘要（cop-digest）— 20260911
+# CoP 摘要（cop-digest）
 
 > **用途**：运行时报告含欧盟且触发 CoP 时，读本文件替代整读原文；需某 Measure 全文或本文件未覆盖处，按「原文锚点」行号区间读 `references/sources/EU-CoP-Transparency-Code-of-Practice.txt`。
-> **源**：Code of Practice on Transparency of AI-Generated Content（《AI生成内容透明度行为准则》，EU AI Office，2026-06-10 发布）；txt 114,472 字节 / 1,692 行 / **MD5 52e4dd52a86d239e6fbe18fcb2062fee** / 核验日期 2026-09-05。PDF 为权威原件。行号锚点仅对该 txt 版本有效，txt 变更（重新抽取/重新下载）即锚点整体失效，须按构建规则第七节重建并重核。
-> **构建**：2026-09-11，按《cop-digest 构建规则》（references/cop-digest-build-rules.md）执行；版式层清洗（连字断词/页码行/空行），未改措辞。**逐字引用前须按锚点回对原文。**
+> **源**：Code of Practice on Transparency of AI-Generated Content（《AI生成内容透明度行为准则》，EU AI Office，2026-06-10 发布）；txt 114,472 字节 / 1,692 行 / **MD5 52e4dd52a86d239e6fbe18fcb2062fee**。PDF 为权威原件。行号锚点仅对该 txt 版本有效，txt 变更（重新抽取/重新下载）即锚点整体失效，须按构建规则第七节重建并重核。
 > **层级定义**（原文照录口径）：will＝为满足 Art. 50(2)/(4)/(5) 合规而必须执行、受市场监管当局监测；encouraged＝自愿但推荐；may＝自愿或提供实现弹性。遵守本准则**不构成**合规的确凿证据（adherence does not constitute conclusive evidence of compliance）。
 
 ## 〇、Art. 50 ↔ CoP 对应总表（要旨归纳）
@@ -560,8 +559,4 @@
 ```
 <!-- COP_CASE_REGISTRY_JSON_END -->
 
-## 五、构建记录
-
-- 源：`references/sources/EU-CoP-Transparency-Code-of-Practice.txt`（114,472 B / 1,692 L）＋同名 PDF（1,213,943 B）；规则库 last_verified 2026-09-05。
 - 报告逐字引用前，仍须按锚点回对原文。
-- 勘误（2026-09-18）：Section 2 两个**分组标题**原误写为 `### S2-C1`／`### S2-C2`，与构建规则 §五「Section 2：C1（M1.1–1.3）、C2（M2.1–2.3）、C3（Commitment 级）、C4（Commitment 级）」及 §三「仅 Commitment 级条款（无 Measure 编号者）编号写『S2-C3』」不符——分组标题应与 Section 1 一致写 `C1`／`C2`。已改回；`cop_digest_verify.py` 的 C-03 报「未登记锚点」即此漂移的检出信号（分组标题本无独立锚点，其锚点归属子 Measure）。**判据：标题含 `S2-` 前缀者必为无 Measure 子项的叶子条款。**

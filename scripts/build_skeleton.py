@@ -119,10 +119,8 @@ def relevant_b10_values(answers: dict) -> list[str]:
         values.extend(B10_AD_VALUES)
     return values
 
-# SB1000 开关占位：加州 CAITA 条行（§§22757–22757.6）的「效力状态」不写死，渲染时按
-# answers["SB1000_status"] 经 lookups.sb1000_baseline() 的 status_label 填充（同源于
-# 「〇、效力状态开关」）。2026-10-01 修：该行原硬编码「已生效（2026-09-30）」，与
-# SB1000_status 无关，待签署/否决态下与其下的 SB 1000 状态行自相矛盾。
+# SB1000开关占位：加州CAITA条行（§§22757–22757.6）的「效力状态」按
+# answers["SB1000_status"]经lookups.sb1000_baseline()填充。
 # ★本行名称与填出的状态文本刻意不含「CAITA」「修正案」——W-26 的信号域按「含 SB 1000 且含
 #   CAITA／修正案」取行，若本行落入信号域将与其状态行混叠。
 SWITCH_PLACEHOLDER = "__SB1000_SWITCH__"
@@ -168,8 +166,7 @@ def normalise_jurisdictions(raw: object) -> list[str]:
 def pending_facts(answers: dict) -> list[tuple[str, str, str]]:
     """从答案里挑出「不确定」项，机械展开为待核事实行（不含法律定性）。
 
-    注：历史上接收过一个 `jurisdictions` 形参，但函数体从未使用（量级遍历直接走
-    `A4a.items()`，不依赖外部法域列表），已于 2026-09-17 移除，避免误导维护者。
+    量级遍历直接读取 `A4a.items()`。
     """
     rows: list[tuple[str, str, str]] = []
     a4a = answers.get("A4a") or {}
@@ -269,7 +266,7 @@ def pending_facts(answers: dict) -> list[tuple[str, str, str]]:
             )
         )
 
-    # B-7（2026-09-23）：Art. 50(4) 第 1-2 项（深度伪造）与 B6（第 3 项·公共利益文本）
+    # Art. 50(4)第1-2项（深度伪造）与B6（第3项·公共利益文本）
     # 同卡采集、独立落盘；「不确定」按最严口径列入待核（列待核范围，非推定成立）。
     if str(answers.get("B6_deepfake", "")).strip() == "不确定":
         rows.append(
@@ -474,8 +471,7 @@ def render(answers: dict, report_name: str) -> str:
 
     session_date = str(answers.get("session_date", "")).strip() or "{待填：日期}"
     lines: list[str] = []
-    # agent2（2026-09-28）：交付偏好（A8）读取与默认标志。
-    # 报告配置只能来自两条合法路径：A8 采集键，或 defaults_applied 标志＋批注留痕；
+    # 报告配置只能来自两条合法路径：A8采集键，或defaults_applied标志＋批注记录；
     # 不存在第三条路（阶段4 现场弹窗追问）。
     defaults_applied: list[str] = []
     lang_raw = str(answers.get("A8_report_language", "")).strip()
@@ -497,7 +493,7 @@ def render(answers: dict, report_name: str) -> str:
     lines.append(f"     不构成任何法律定性。来源答案：{report_name}。生成后请人工补齐 `{{待填：…}}`。 -->")
     lines.append("")
     lines.append(
-        f"<!-- agent2-report-config: language={report_language}; "
+        f"<!-- report-config: language={report_language}; "
         f"footnote_original_text={footnote_pref}; "
         f"defaults_applied={','.join(defaults_applied) if defaults_applied else 'none'} -->"
     )
@@ -679,7 +675,7 @@ def render(answers: dict, report_name: str) -> str:
         lines.append("")
         # 正文禁 blockquote（E-04）：改普通加粗段；且不写内部脚本名（属报告外实现细节）。
         # 措辞不得新引入「效力核验表未登记」的法规名/条号——否则本行会触发 W-14（覆盖率）。
-        # B-5（2026-09-23）：渲染人类可读基准名，内部 token（SB942_AB853/SB1000）不进交付物
+        # 输出人类可读基准名，不输出内部枚举值。
         baseline_readable = baseline.get("readable") or baseline["baseline"]
         lines.append(
             f"**义务基准**：{baseline_readable}"
@@ -709,15 +705,14 @@ def render(answers: dict, report_name: str) -> str:
     # 具名占位使骨架态即满足条目存在性，缺项不再靠记忆。
     lines.append(f"- **回填确认记录**：{PLACEHOLDER}")
     if defaults_applied:
-        # agent2（2026-09-28）：交付偏好缺键时的默认采用留痕（check_report W-28 一致性检查锚点）。
+        # 交付偏好缺键时记录采用的默认值，供W-28一致性检查。
         lines.append(
             f"- **交付偏好默认采用记录**：{('、'.join(defaults_applied))} 未采集（用户跳过），"
             "按默认规则执行（纯中文＋正文以条号援引）；如需调整请在报告定稿前告知。"
         )
     lines.append(f"- {PLACEHOLDER}")
     lines.append("")
-    # 报头声明（2026-10-02 用户裁定：整块报头元数据——生成日期／效力核验日期、依据、
-    # 范围声明、法规时效——改由批注承载，正文与报头均不保留）。骨架报头不再输出该块，
+    # 报头声明由批注承载，正文与报头均不保留该元数据块。骨架报头不输出该块，
     # 此处给出承载位与占位，以免成稿漏项。锚定文档主标题，见 scripts/annotations_to_docx_comments.py。
     lines.append("### 5. 报头声明（生成日期、效力核验日期、依据、范围声明、法规时效）")
     lines.append(f"- 生成日期：{session_date} ｜ 效力核验日期：{PLACEHOLDER}")

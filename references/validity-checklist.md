@@ -40,7 +40,7 @@
 
 | Art. 50委员会指南 | **监控点**：现为内容批准版C(2026) 5054（2026-07-20），正式通过版（全语种齐备后）是否发布 | 委员会数字战略网站（digital-strategy.ec.europa.eu） |
 
-| 透明度行为准则 | **监控点**：签署名单更新；准则修订（至少每两年评估）；Measure 3.4水印互操作方案进展（2027-02-02节点）；委员会/Board是否改判不充分并启动共同规则；准则修订/补充时重建 cop-digest.md 并升版本；sources txt 变更（MD5 与 digest 头部登记不符）即行号锚点全部失效，重建 digest 并重核锚点；**来源失效降级**：官方 factpage（digital-strategy.ec.europa.eu）遭反爬拦截无法取一手数字时，签署名单数（如 S1 83／S2 152）仅可转引二手监测页快照，并须在报告效力表显式标注「转引自二手监测页、未经一手逐条核对」，不得静默顶替或写死为权威；待反爬解除后下次核验重试一手 | 委员会数字战略网站 |
+| 透明度行为准则 | **监控点**：签署名单更新；准则修订（至少每两年评估）；Measure 3.4水印互操作方案进展（2027-02-02节点）；委员会/Board是否改判不充分并启动共同规则；准则修订/补充时重建 cop-digest.md 并复核锚点；sources txt 变更（MD5 与 digest 头部登记不符）即行号锚点全部失效，重建 digest 并重核锚点；**来源失效降级**：官方 factpage（digital-strategy.ec.europa.eu）遭反爬拦截无法取一手数字时，签署名单数量仅可转引二手监测页快照，并须在报告效力表显式标注「转引自二手监测页、未经一手逐条核对」，不得静默顶替或写死为权威；待反爬解除后下次核验重试一手 | 委员会数字战略网站 |
 
 | Art. 111(4)过渡期 | 2026-12-02届满后的执法口径 | EUR-Lex、委员会官网 |
 
@@ -81,7 +81,7 @@
 
 ## 前瞻节点提醒（报告生成日距节点≤60天时，在报告中加「临近节点提示」）
 
-> 本节为**人读镜像**；机器可读副本见 `scripts/lookups.py` 的 `FORWARD_NODES`（骨架 `build_skeleton.py` 据其自动生成报头「临近节点提示」块）。两处为同一份数据的两面，一致性由 `tests/test_scripts.py` 交叉校验——**改一处必须同步改另一处**。
+> 本节为**人读镜像**；机器可读副本见 `scripts/lookups.py` 的 `FORWARD_NODES`（骨架 `build_skeleton.py` 据其自动生成报头「临近节点提示」块）。两处为同一份数据的两面，**改一处必须同步改另一处**。
 
 
 
@@ -105,11 +105,11 @@
 
 
 
-## 覆盖发现检索矩阵（触发式深度核验用，2026-09-30）
+## 覆盖发现检索矩阵（触发式深度核验用）
 
 > 使用条件：仅当用户要求「最新/当前/有没有新规/重新核验」或按「按最新法规重新解读」提出要求时（SKILL.md 阶段3「触发式深度核验」）。**常规报告不执行本矩阵、不得声称做过覆盖发现。**
 
-**加州**——官方来源：leginfo bill search / bill history / bill text / bill status；California Code 对 B&P Code §§22757–22757.6 的最新文本；州长签署/否决/chaptered 状态页。检索词：California AI Transparency Act、CAITA、22757、system provenance、provenance data、generative artificial intelligence、large online platform、AI detection tool、widely adopted specifications。保留 introduced / amended / passed / enrolled / presented to Governor / chaptered / vetoed 全状态记录；候选项须记法案编号、会期、最新版本、送州长日期、chapter 号、operative 日期、修改的法典条款。**已裁定排除项**（2026-09-30 用户裁定，目的域不同：防灾难性风险/选举诚信，非内容标识与场景披露；命中时按排除理由跳过、不重新评估）：SB 53（TFAIA，Ch. 138，§§22757.10 起）、选举类法族（AB 2355 生效／AB 2839、AB 2655 联邦法院阻止中／AB 730 待核）、州长行政令（2026-09-18 AI 安全专家委员会）。**★核验纪律（2026-10-01 新增）**：leginfo 的 billHistory／billStatus 页**不加参数时可能返回陈旧缓存**（本次核 AB 2713 曾缺最后两行「Approved by the Governor」「Chaptered by Secretary of State」）；核签署/章化状态**一律加 `&rev=1` 取新页**，或交叉核 gov.ca.gov 州长签署页。
+**加州**——官方来源：leginfo bill search / bill history / bill text / bill status；California Code 对 B&P Code §§22757–22757.6 的最新文本；州长签署/否决/chaptered 状态页。检索词：California AI Transparency Act、CAITA、22757、system provenance、provenance data、generative artificial intelligence、large online platform、AI detection tool、widely adopted specifications。保留 introduced / amended / passed / enrolled / presented to Governor / chaptered / vetoed 全状态记录；候选项须记法案编号、会期、最新版本、送州长日期、chapter 号、operative 日期、修改的法典条款。**范围排除项**（目的域不同：防灾难性风险/选举诚信，非内容标识与场景披露；命中时按排除理由跳过、不重新评估）：SB 53（TFAIA，Ch. 138，§§22757.10 起）、选举类法族（AB 2355 生效／AB 2839、AB 2655 联邦法院阻止中／AB 730 待核）、州长行政令（2026-09-18 AI 安全专家委员会）。**★核验纪律**：leginfo 的 billHistory／billStatus 页**不加参数时可能返回陈旧缓存**；核签署/章化状态**一律加 `&rev=1` 取新页**，或交叉核 gov.ca.gov 州长签署页。
 
 **欧盟**——官方来源：EUR-Lex（AI Act、修正条例、勘误、授权/实施文件）；European Commission Digital Strategy / AI Office；AI Board 官方文件；Code of Practice 官方版本与充分性意见。检索词：Regulation (EU) 2024/1689、Article 50、AI-generated content transparency、Digital Omnibus、corrigendum、delegated act、implementing act、Code of Practice、AI Board。候选项须区分条例／委员会指南／行为准则／委员会意见／AI Board 结论／成员国配套规则，不得统称「欧盟新法规」。
 
