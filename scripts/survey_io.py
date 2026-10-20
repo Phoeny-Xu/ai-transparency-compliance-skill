@@ -4,11 +4,8 @@
 
 定位
 ----
-`references/survey-audit-schema.md` 定义的结构化答案契约，过去由 `resolve_triggers.py`
-与 `build_skeleton.py` **各实现一遍**，两份实现已经分叉：前者只认扁平结构、不校验
-schema、不判空，后者两种都收。分叉的后果在 2026-09-15「案例16-18 矛盾注入轮」被读源码
-发现（V2-01）：按文档样例（元数据外壳＋`answers` 嵌套）落盘时，前者把整篇文档当答案用，
-10 行触发判成 1 行，答案级校验静默通过，退出码 0。
+`references/survey-audit-schema.md` 定义结构化答案契约。读取逻辑集中在本模块，供
+`resolve_triggers.py` 与 `build_skeleton.py` 共用，避免输入解析口径分叉。
 
 本模块是该契约的**唯一读取入口**，引擎与骨架生成器共用，使「文档与实现不一致」在结构上
 不可能再发生。
@@ -62,8 +59,7 @@ KNOWN_KEYS = frozenset(
 )
 
 # 答案键的形态（供未列入 KNOWN_KEYS 的增量题使用：A 组另有 A8/A9、B 组另有 B10 等）：
-# 字母 A/B **后紧跟数字**（如 A8／B10／B4_2a）。**不得用裸前缀 `startswith(("A","B"))`**——
-# 那会把 Author／Batch 一类元数据键也计入答案键（2026-09-19 收紧为 `^[AB]\d`）。
+# 答案键以A/B开头且后接数字，避免将其他元数据键计入答案键。
 _ANSWER_KEY_RE = re.compile(r"^[AB]\d")
 _KEY_PREFIX_EXCEPTIONS = frozenset({"schema", "report", "answers"})
 
@@ -105,7 +101,7 @@ _YES_NO_UNKNOWN = frozenset({"是", "否", "不确定"})
 _B2_RELATIONSHIPS = frozenset({"自研", "部分自研", "授权接入", "开源微调", "其它", "不适用"})
 _B2_A_VALUES = _YES_NO_UNKNOWN | {"不适用"}
 _B2_B_VALUES = frozenset({"有且下游可依赖", "无约定", "不确定", "不适用"})
-# B4_2a 元素级封闭值域（2026-09-27 用户裁定：立即加白名单）。
+# B4_2a元素级封闭值域。
 # 允许值＝四类法定平台（§22757.1(i)(1)〔SB 1000〕/§22757.1(h)(1)〔现行法〕封闭列举）＋「其它」＋「不确定」。
 # 四类法定平台与 `lookups.CA_LOP_CLOSED_CATEGORIES` 必须逐字一致——tests 以机械断言防两处漂移。
 # 自造值、空字符串、标量、混合非法数组一律结构错误（退出码 2）；不得静默归一或降级。
@@ -152,7 +148,7 @@ _DETAIL_KEYS = {
         "deduplication_method", "threshold_interpretation", "source", "notes",
     },
 }
-# 交付偏好（A8）封闭值域（agent2，2026-09-28 批次回迁）。
+# 交付偏好（A8）封闭值域。
 _REPORT_LANGUAGE = frozenset({"纯中文", "中英双语", "不确定"})
 _FOOTNOTE_PREF = frozenset({"是", "否", "不确定"})
 
@@ -165,7 +161,7 @@ _ENUMS = {
     "B4_2b": _YES_NO_UNKNOWN,
     "B4_2c": frozenset({"≤100万", "<=100万", "100万-200万", ">200万", "不确定"}),
     "B6": _YES_NO_UNKNOWN,
-    # B-7（2026-09-23）：欧盟 Art. 50(4) 第 1-2 项（深度伪造）的独立落盘位。
+    # 欧盟Art. 50(4)第1-2项（深度伪造）的独立落盘位。
     # 与 B6（第 3 项·公共利益文本）**同卡采集、各自落盘**：单一定义点仍归
     # B13 `identifiable_natural_person`（「可辨识自然人」不在第三处重复定义）。
     "B6_deepfake": _YES_NO_UNKNOWN,
@@ -613,9 +609,9 @@ def _normalise_answers(raw: dict, *, schema_id: str | None = None) -> tuple[dict
             if not isinstance(field_value, (str, int, float, bool)) and field_value is not None:
                 raise AuditFormatError(f"answers.{key}.{field}: expected scalar value")
 
-    # F-4（2026-09-23）：`B4_2c` 给出确定量级时门槛口径卡（含 large online platform 的
+    # `B4_2c`给出确定量级时门槛口径卡（含large online platform的
     # 「接收分发内容用户／创作者·协作者用户」法定区分）不得缺席——该要求的触发条件
-    # 跨题（`B4_2` 是否为平台候选），非本层可判，故落在
+    # 跨题（`B4_2`是否为平台候选），非本层可判，故落在
     # `resolve_triggers.cross_check_scale`（答案级、退出码 1），此处不重复实现。
     if "B3a" in answers and answers["B3a"] not in _B3A_VALUES:
         raise AuditFormatError(f"answers.B3a: invalid band {answers['B3a']!r}")

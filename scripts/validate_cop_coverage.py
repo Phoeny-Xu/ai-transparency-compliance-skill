@@ -242,9 +242,7 @@ def validate(
             elif not any(label in footnotes and _source_matches(record, footnotes[label]) for label in references):
                 errors.append(f"COV-16 {item_id} 的 CoP 来源脚注与 Section/Commitment/Measure/Art. 50 锚点不匹配")
 
-            # 2026-09-27 修：原 `r"\*\*M([\d.]+)\b"` 在「**M2.1内部合规流程**」这类
-            # 排版归一化后的写法上失效——`\b` 要求 "1" 后是非 word 字符，而中文属 \w，
-            # 回溯后只捕到 "2."，误报 COV-18「标题错位为 M2.」。改为取完整点分编号。
+            # 完整提取点分编号，兼容编号与中文标题文字紧邻的情况。
             title_measure = re.search(r"\*\*M(\d+(?:\.\d+)*)", block)
             expected_measure = item_id.rsplit("M", 1)[-1]
             if title_measure and title_measure.group(1) != expected_measure:
@@ -290,8 +288,7 @@ def validate(
 
     visible_body = FOOTNOTE_DEF_RE.sub("", report_text)
     visible_body = re.sub(r"<!--.*?-->", "", visible_body, flags=re.S)
-    # 2026-09-27 修：原 `CoP\b` 在「来源：CoP措施」这类中英紧邻写法上不成立
-    # （中文属 \w，`\b` 失败）→ 该禁用句在排版归一化后静默漏检。改为只排除后接拉丁数字的情形。
+    # 检查CoP后接中文或符号的写法，同时避免命中更长的拉丁字母/数字词。
     if re.search(r"来源\s*[：:]\s*(?:《?AI生成内容透明度行为准则|CoP(?![A-Za-z0-9])|准则第)", visible_body, re.I):
         errors.append("COV-17 正文残留 CoP 来源句；来源应由专用脚注承载")
 

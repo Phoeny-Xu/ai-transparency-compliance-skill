@@ -1,7 +1,7 @@
 # SB 1001 (BOT Act) - Official Chaptered 2018-09-28 Text
 
 > Source: https://leginfo.legislature.ca.gov/faces/billTextClient.xhtml?bill_id=201720180SB1001&version=20170SB100192CHP
-> Retrieved: 2026-09-22 | California Legislative Information
+> California Legislative Information
 > This is a mechanical text extraction of the official bill page. Verify quotations against the source URL.
 
 ---

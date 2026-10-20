@@ -1,7 +1,7 @@
 # AB 3030 - Official Chaptered 2024-09-28 Text
 
 > Source: https://leginfo.legislature.ca.gov/faces/billTextClient.xhtml?bill_id=202320240AB3030&version=20230AB303091CHP
-> Retrieved: 2026-09-22 | California Legislative Information
+> California Legislative Information
 > This is a mechanical text extraction of the official bill page. Verify quotations against the source URL.
 
 ---

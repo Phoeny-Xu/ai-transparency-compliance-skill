@@ -1,7 +1,7 @@
 # SB 243 - Official Chaptered 2025-10-13 Text
 
 > Source: https://leginfo.legislature.ca.gov/faces/billTextClient.xhtml?bill_id=202520260SB243&version=20250SB24392CHP
-> Retrieved: 2026-09-22 | California Legislative Information
+> California Legislative Information
 > This is a mechanical text extraction of the official bill page. Verify quotations against the source URL.
 
 ---
