@@ -64,7 +64,7 @@
 
 ## 二、加州（B&P Code §§22757–22757.6，SB 942 经 AB 853 修正；SB 1000 正式通过版 Enrolled）
 
-> **条号锚定**：表中 §22757.1(x) **未另标版本者，一律指现行法（SB 942 经 AB 853 修正）号**；标〔SB 1000〕者为 SB 1000 Enrolled 号。两版 §22757.1 重编号对照（现行法 → SB 1000）：covered provider (d)→(e)、GenAI hosting platform (g)→(h)、large online platform (h)(1)→(i)(1)、capture device (b)→(c)、capture device manufacturer (c)(1)→(d)(1)、GenAI 系统 (f)→(g)、digital signature (e)→(f)、metadata (l)→(k)、provenance data (o)→(n)、system provenance data (p)→(o)；SB 1000 新增 assistive technology (b)、minor modification (l)。**查条号一律回 `references/sources/` 打包原件，不得先联网**（第三方摘要常与某中间版本对齐而给出"看似正确"的错号）。
+> **条号锚定**：表中 §22757.1(x) **未另标版本者，一律指现行法（SB 942 经 AB 853 修正）号**；标〔SB 1000〕者为 SB 1000 Enrolled 号（＝Chapter 861 章化版同号）。两版 §22757.1 重编号对照（现行法 → SB 1000）：covered provider (d)→(e)、GenAI hosting platform (g)→(h)、large online platform (h)(1)→(i)(1)、capture device (b)→(c)、capture device manufacturer (c)(1)→(d)(1)、GenAI 系统 (f)→(g)、digital signature (e)→(f)、metadata (l)→(k)、provenance data (o)→(n)、system provenance data (p)→(o)；SB 1000 新增 assistive technology (b)、minor modification (l)。**查条号一律回 `references/sources/` 打包原件，不得先联网**（第三方摘要常与某中间版本对齐而给出"看似正确"的错号）。
 
 | 英文原文 | 建议中文 | 性质/依据 |
 | --- | --- | --- |

@@ -22,7 +22,7 @@
 | 豁免 | §22757.5，电子游戏/电视/流媒体/电影/互动体验五类 | **收窄为仅「电子游戏」**；**新增** (b) 辅助技术限时豁免（至 2029-01-01） | 豁免范围收窄 + 辅助技术临时豁免 |
 | 生效 | §22757.6，2026-08-02 生效 | 紧急法案条款，**2026-09-30 经州长签署即时生效**（Chapter 861） | 即时生效 |
 
-> **§22757.1 定义条三版序号链（★查号先读此处；2026-09-18 逐字核 `references/sources/` 打包原件）**：covered provider 在 **SB 942 原始版＝(b)**（含 100 万门槛，`CA-SB942-chaptered.md` L69）→ **AB 853 修正版＝(d)**（门槛未改，`CA-AB853-chaptered.md` L68）→ **SB 1000 Enrolled＝(e)**（门槛已删，`CA-SB1000-enrolled.md` L40），即 **(b)→(d)→(e)**。连带位移：GenAI hosting platform 由 (g)→(h)；large online platform 由 (h)(1)→(i)(1)。**注意 §22757.2 是义务条**（SB 942＝AI detection tool、SB 1000 改名 disclosure verification tool），三版中均非定义条。引用条号须**先读打包原件、不得先联网**——第三方摘要常与某中间版本对齐而给出「看似正确」的错号。
+> **§22757.1 定义条三版序号链（★查号先读 `references/sources/` 打包原件）**：covered provider 在 **SB 942 原始版＝(b)**（含 100 万门槛，`CA-SB942-chaptered.md` L69）→ **AB 853 修正版＝(d)**（门槛未改，`CA-AB853-chaptered.md` L68）→ **SB 1000 Enrolled＝(e)**（门槛已删，`CA-SB1000-enrolled.md` L40），即 **(b)→(d)→(e)**。连带位移：GenAI hosting platform 由 (g)→(h)；large online platform 由 (h)(1)→(i)(1)。**注意 §22757.2 是义务条**（SB 942＝AI detection tool、SB 1000 改名 disclosure verification tool），三版中均非定义条。引用条号须**先读打包原件、不得先联网**——第三方摘要常与某中间版本对齐而给出「看似正确」的错号。
 
 ## 三版 §22757.1 子项对照（查号基准表）
 

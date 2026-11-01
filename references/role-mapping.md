@@ -1,6 +1,6 @@
 # 三地角色判定细则：价值链七环节×法定角色对应表
 
-> 核验日期：2026-10-01。角色义务细节见cn-rules.md / eu-rules.md / ca-rules.md；加州场景规则另见ca-scenario-disclosure-rules.md。
+> 核验日期：2026-11-01。角色义务细节见cn-rules.md / eu-rules.md / ca-rules.md；加州场景规则另见ca-scenario-disclosure-rules.md。
 
 > **角色判定双锚定规则（★强制）**：判定用户企业角色时，必须**同时结合定义条款与义务条款**综合判断，不得仅凭义务条款倒推角色、也不得仅凭定义条款孤立定性：
 > (a) **定义条款**——欧盟 AI Act Art. 3（provider/deployer/importer/distributor/placing on the market/putting into service 等，见 eu-rules.md「一、定义」节）；加州 §22757.1（covered provider (d→e)、GenAI system (f→g)、large online platform (h→i)、GenAI hosting platform (g→h)、capture device manufacturer (b)(c)→(c)(d) 等；箭头前为现行法编号、后为 SB 1000 重编号，义务条文 §22757.2/§22757.3 不变）；《互联网信息服务深度合成管理规定》第23条（深度合成服务提供者/深度合成服务技术支持者）；《生成式人工智能服务管理暂行办法》第22条（生成式人工智能服务提供者，含通过提供可编程接口等方式提供服务）；《人工智能生成合成内容标识办法》第2条（显式/隐式标识定义及适用前提）。

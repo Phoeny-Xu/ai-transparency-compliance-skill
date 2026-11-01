@@ -1,6 +1,6 @@
 # cop-digest 构建规则
 
-> 定位：本文件是 `references/cop-digest.md`（CoP 摘要）的构建规则与质量门禁，供维护期重建摘要时执行。2026-09-14 已随 cop-digest.md 一并合入 skill；第九节为同日已执行的运行时接入清单（13 项，存档备查）。
+> 定位：本文件是 `references/cop-digest.md`（CoP 摘要）的构建规则与质量门禁，供重建或更新摘要时执行。
 
 ## 一、定位与用途
 

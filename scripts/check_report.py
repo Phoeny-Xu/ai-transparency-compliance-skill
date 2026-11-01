@@ -18,7 +18,7 @@ SKILL.md §6 交付前门禁的**机检子集**。agent 生成报告后、进入
 ----
     python check_report.py 报告.md --jurisdictions CN,EU,CA --lang zh-en --mode A
     python check_report.py --list          # 列出全部检查项
-    python check_report.py --quiet-waivers # 不输出 W-00 豁免留痕提示（正反用例回归见 tests/test_scripts.py）
+    python check_report.py --quiet-waivers # 不输出 W-00 豁免留痕提示
 
 退出码
 ------

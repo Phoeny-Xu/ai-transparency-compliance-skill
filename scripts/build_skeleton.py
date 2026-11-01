@@ -29,7 +29,7 @@ W-17（未找到「未覆盖维度与转介卡」段）属预期**（由 agent �
 但 **E-03（问卷编号/内部术语）、E-04（正文 blockquote）、E-13（场景法规缺独立效力行）、
 W-14（援引法规多于效力表行）、W-19（批注节缺「回填确认记录」）必须为零**——前四类由生成器自身文字/格式产生，第五类靠
 本脚本给出具名占位（§4）保障；它们若报警，属本脚本缺陷而非报告缺陷——否则「对骨架跑机检」
-者会把脚本问题误当成稿问题。回归见 `tests/test_scripts.py::BuildSkeletonTests`。
+者会把脚本问题误当成稿问题。
 
 输入契约见 `references/survey-audit-schema.md`。
 退出码：0=生成成功；1=答案级问题（统计详情不完整、值域无法识别或能力与模态矛盾，须弹窗澄清后重跑）；2=未执行（输入缺失/结构不符/输出已存在且未加 --force）。
@@ -736,8 +736,8 @@ def render(answers: dict, report_name: str) -> str:
 def load_answers(path: Path) -> dict:
     """读取结构化答案。
 
-    读取逻辑统一在 `scripts/survey_io.py`（与 resolve_triggers 共用一处实现，
-    避免两条维护线再次分叉）。本函数只是保留旧名以兼容既有调用。
+    读取逻辑统一在 `scripts/survey_io.py`（与 resolve_triggers 共用一处实现）。
+    本函数作为兼容入口，调用统一的读取逻辑。
     """
     return load_audit(path)
 

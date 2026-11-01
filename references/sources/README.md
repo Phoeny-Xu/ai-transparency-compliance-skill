@@ -33,7 +33,7 @@
 |------|----------|------|
 | CA-SB942-chaptered.md | SB 942 (2024, Ch. 291) California AI Transparency Act签署版全文 | leginfo billTextClient |
 | CA-AB853-chaptered.md | AB 853 (2025, Ch. 674)签署版全文（修正案，非清洁版） | leginfo billTextClient |
-| CA-SB1000-enrolled.md | SB 1000（2025-2026会期）正式通过版（Enrolled）逐字全文（2026-09-30已签署章化：Chapter 861, Statutes of 2026） | leginfo billTextClient |
+| CA-SB1000-enrolled.md | SB 1000（2025-2026会期）正式通过版（Enrolled）逐字全文（2026-09-30已签署章化：Chapter 861, Statutes of 2026；已与章化版核校一致，条文与条号未变，故不另存 chaptered 本） | leginfo billTextClient |
 | CA-SB1001-BOT-Act-chaptered.md | SB 1001（2018）BOT Act签署版全文 | leginfo billTextClient，Chaptered 2018-09-28 |
 | CA-SB243-chaptered.md | SB 243陪伴型聊天机器人签署版全文 | leginfo billTextClient，Chaptered 2025-10-13 |
 | CA-SB867-chaptered.md | SB 867对§22601的修订及§22604.5签署版全文 | leginfo billTextClient，Chaptered 2026-09-10 |

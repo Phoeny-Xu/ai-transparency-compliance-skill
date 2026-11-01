@@ -3,7 +3,7 @@
 > 来源：leginfo官方bill text（Enrolled）
 > 官方历史页：https://leginfo.legislature.ca.gov/faces/billHistoryClient.xhtml?bill_id=202520260SB1000
 > 状态：**2026-09-30 经州长签署，Chapter 861, Statutes of 2026**，紧急法案即时生效。（保留下方 Enrolled 原文不动）
-> 性质：官方一手文本（Enrolled，已由 Chapter 861 章化）
+> 性质：官方一手文本（Enrolled，已由 Chapter 861 章化）；2026-11-01 已与章化版逐条核校，条文内容与条号未变，章化版仅多「CHAPTER 861」标识及签署／备案行，故本文件继续作为引用基准，不另存 chaptered 本
 
 An act to amend Sections 22757.1, 22757.2, 22757.3, 22757.4, and 22757.5 of, and to add and repeal Section 22757.4.1 of, the Business and Professions Code, relating to artificial intelligence, and declaring the urgency thereof, to take effect immediately. LEGISLATIVE COUNSEL'S DIGEST
 

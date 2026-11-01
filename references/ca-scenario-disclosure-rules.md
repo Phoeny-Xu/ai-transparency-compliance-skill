@@ -1,8 +1,9 @@
 # 加州场景化AI披露规则库
 
 ```yaml
-last_verified: 2026-09-22
+last_verified: 2026-11-01
 status: 场景规则按法案分别核验；高波动法案引用前实时复核
+next_recheck_before: 2026-12-30
 ```
 
 ## 一、适用纪律

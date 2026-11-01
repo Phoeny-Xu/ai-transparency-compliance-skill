@@ -1,9 +1,9 @@
 # 欧盟规则库：AI Act透明度义务 + AI生成内容透明度行为准则
 
 ```yaml
-last_verified: 2026-08-19
-status: 现行有效（含Digital Omnibus修订，Reg. (EU) 2026/1744，OJ L 24.7.2026）
-next_recheck_before: 2026-11-17
+last_verified: 2026-11-01
+status: 现行有效（含Digital Omnibus修订，Reg. (EU) 2026/1744，OJ L 24.7.2026；2026-09-29 勘误，Art. 50 不变）
+next_recheck_before: 2026-11-30
 ```
 
 > 来源层级（全部为官方一手文本，原件见 `references/sources/`）：
@@ -13,6 +13,7 @@ next_recheck_before: 2026-11-17
 > - Commission Opinion C(2026) 4839（2026-07-08，准则充分性评估）：**官方原文**（sources/EU-CoP-Commission-Opinion-C2026-4839.pdf）
 > - AI Board充分性评估结论：**官方原文**（sources/EU-CoP-AIBoard-Adequacy-Conclusion.pdf）
 > - 委员会Art. 50指南 C(2026) 5054（2026-07-20内容批准）：**官方原文**（sources/EU-Art50-Guidelines-C2026-5054.pdf + 批准通讯PDF）
+> AI Act（Reg 2024/1689）与 Digital Omnibus（Reg 2026/1744）文本无新修正性修订；2026-09-29 官方发布 Reg 2026/1744 勘误（errata，仅修正文字/形式错误，未新增义务，Art. 50 透明度义务不变；以勘误后文本为准）。委员会于 2026-10-22 发布《AI 生成内容透明度指南》（Guidelines on Transparency of AI-generated Content），为 Art. 50 合规配套指引，不改变义务本身。Art. 50(2) 既有系统过渡期 2026-12-02 届满在即。
 
 ---
 
@@ -297,7 +298,7 @@ Art. 3(3)要求provider**同时满足**三项要件：①开发或委托开发AI
 - AI Board：**充分性评估结论（2026-07-09通过）**——Section 1与Section 2均充分覆盖Art. 50(2)、(4)、(5)；称准则为"截至2026年7月唯一经评估为充分的欧盟全境实操工具"。
 - 两份评估按Omnibus修订前程序作出；官方确认其在Omnibus生效后**继续有效**（结论一致前提下）（Commission Opinion第(5)段、Board结论原文）。
 
-**⚠️ 法律效果（重要更正，官方原文确认）**：签署并遵守准则可用于**证明（demonstrate）合规**，但**不构成合规的确凿证据（conclusive evidence），也不产生合规推定（presumption of conformity）**。市场监督机关仍保留调查签署者是否实际落实准则承诺的权力（Board结论、Commission Opinion、Omnibus Recital三处一致）。——此前版本"合规推定"表述有误，以此为准。
+**法律效果（官方原文确认）**：签署并遵守准则可用于**证明（demonstrate）合规**，但**不构成合规的确凿证据（conclusive evidence），也不产生合规推定（presumption of conformity）**。市场监督机关仍保留调查签署者是否实际落实准则承诺的权力（Board结论、Commission Opinion、Omnibus Recital三处一致）。
 
 **义务层级三层（will/encouraged/may，判定以原文动词为准）**：
 
