@@ -154,10 +154,26 @@ def ca_lop_decision(
     s = str(scale or "").strip()
     if s in (">200万", ">2000000", "200万+"):
         trace.append("量级关：全球月用户 >200万")
+        if not closed_hit:
+            return {
+                "result": "模糊",
+                "stage": "定性关",
+                "trace": trace + [
+                    "定性关仍待个案确认：分发事实已确认、量级已达，但平台整体是否属于封闭列举类型尚未核实"
+                ],
+            }
         return {"result": "构成", "stage": "量级关", "trace": trace}
     if s in ("≤100万", "100万-200万", "<=100万"):
         trace.append(f"量级关：{s}，未达 200 万门槛")
         return {"result": "排除", "stage": "量级关", "trace": trace}
+    if not closed_hit:
+        return {
+            "result": "模糊",
+            "stage": "定性关",
+            "trace": trace + [
+                "量级关：档位不确定；平台整体是否属于封闭列举类型仍需个案确认"
+            ],
+        }
     return {"result": "模糊", "stage": "量级关", "trace": trace + ["量级关：档位不确定"]}
 
 
@@ -276,47 +292,27 @@ def ab1609_baseline(status: str) -> dict:
 
 NODE_WINDOW_DAYS = 60
 
-FORWARD_NODES: tuple[tuple[str, str, str], ...] = (
-    (
-        "2027-01-01",
-        "加州 SB 1119 对 §22602 的修订及 §21811 生效；SB 1050 合成表演者广告规则生效；AB 2713 版 large online platform 义务同日 operative",
-        "加州陪伴型聊天机器人运营者、广告创作者与广告媒介、大型网络平台",
-    ),
-    (
-        "2026-12-02",
-        "欧盟 Art. 111(4) 过渡期届满：2026-08-02 前投放市场的系统须完成 Art. 50(2) 合规；新深度伪造/CSAM 禁止条款适用",
-        "欧盟 provider（存量系统）",
-    ),
-    (
-        "2027-01-01",
-        "加州 SB 1119 对 §22602 的修订及 §21811 生效；SB 1050 合成表演者广告规则生效",
-        "加州陪伴型聊天机器人运营者、广告创作者与广告媒介",
-    ),
-    (
-        "2027-01-01",
-        "加州 large online platform、GenAI hosting platform 义务生效",
-        "加州平台类主体",
-    ),
-    (
-        "2027-02-02",
-        "欧盟行为准则 Measure 3.4 水印检测互操作最低方案落地",
-        "欧盟 provider（准则签署者）",
-    ),
-    (
-        "2027-07-01",
-        "加州 SB 1119 的 §§21812、21812.5、21813 开始施行",
-        "允许儿童继续使用的陪伴型聊天机器人运营者",
-    ),
-    (
-        "2028-01-01",
-        "加州采集设备制造商义务生效（限 2028 年起首次州内生产销售设备）",
-        "加州设备制造商",
-    ),
+FORWARD_NODE_RECORDS: tuple[tuple[str, str, str, str], ...] = (
+    ("CA", "2027-01-01", "加州 SB 1119 对 §22602 的修订及 §21811 生效；SB 1050 合成表演者广告规则生效；AB 2713 版 large online platform 义务同日 operative", "加州陪伴型聊天机器人运营者、广告创作者与广告媒介、大型网络平台"),
+    ("EU", "2026-12-02", "欧盟 Art. 111(4) 过渡期届满：2026-08-02 前投放市场的系统须完成 Art. 50(2) 合规；新深度伪造/CSAM 禁止条款适用", "欧盟 provider（存量系统）"),
+    ("CA", "2027-01-01", "加州 SB 1119 对 §22602 的修订及 §21811 生效；SB 1050 合成表演者广告规则生效", "加州陪伴型聊天机器人运营者、广告创作者与广告媒介"),
+    ("CA", "2027-01-01", "加州 large online platform、GenAI hosting platform 义务生效", "加州平台类主体"),
+    ("EU", "2027-02-02", "欧盟行为准则 Measure 3.4 水印检测互操作最低方案落地", "欧盟 provider（准则签署者）"),
+    ("CA", "2027-07-01", "加州 SB 1119 的 §§21812、21812.5、21813 开始施行", "允许儿童继续使用的陪伴型聊天机器人运营者"),
+    ("CA", "2028-01-01", "加州采集设备制造商义务生效（限 2028 年起首次州内生产销售设备）", "加州设备制造商"),
+)
+
+# 兼容既有调用方的三元组视图；法域信息由上方记录保留，渲染时用下方函数过滤。
+FORWARD_NODES: tuple[tuple[str, str, str], ...] = tuple(
+    (node_date, item, target)
+    for _jurisdiction, node_date, item, target in FORWARD_NODE_RECORDS
 )
 
 
 def forward_nodes_within(
-    session_date: str, days: int = NODE_WINDOW_DAYS
+    session_date: str,
+    days: int = NODE_WINDOW_DAYS,
+    jurisdictions: object | None = None,
 ) -> list[tuple[str, str, str]]:
     """返回自 session_date 起 days 天内（含两端，即 base ≤ 节点日期 ≤ base+days）的前瞻节点，
     按日期升序。已过节点（节点日期早于基准日）不回列——由其法域状态开关另行处理。
@@ -328,10 +324,21 @@ def forward_nodes_within(
     except (TypeError, ValueError):
         return []
     limit = base + timedelta(days=days)
+    jurisdiction_map = {"中国大陆": "CN", "中国": "CN", "欧盟": "EU", "加州": "CA", "CN": "CN", "EU": "EU", "CA": "CA"}
+    if jurisdictions is None:
+        allowed = None
+    elif isinstance(jurisdictions, str):
+        allowed = {jurisdiction_map.get(jurisdictions.strip(), jurisdictions.strip())}
+    else:
+        allowed = {
+            jurisdiction_map.get(str(value).strip(), str(value).strip())
+            for value in jurisdictions
+        }
     return [
         (node_date, item, target)
-        for node_date, item, target in FORWARD_NODES
-        if base <= date.fromisoformat(node_date) <= limit
+        for jurisdiction, node_date, item, target in FORWARD_NODE_RECORDS
+        if (allowed is None or jurisdiction in allowed)
+        and base <= date.fromisoformat(node_date) <= limit
     ]
 
 

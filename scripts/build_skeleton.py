@@ -446,7 +446,7 @@ def overview_rows(answers: dict, jurisdictions: list[str]) -> list[tuple[str, di
         if role in {"advertising_medium", "both", "unknown"}:
             rows.append(("第三方广告传播媒介运营", {}))
 
-    # 补占位：每行按在范围内的法域填占位（加州列若不在范围写「不适用（本次范围未含）」）
+    # 补占位：每行按范围内法域填占位；返回字典仍保留三地键，供兼容调用方读取。
     filled: list[tuple[str, dict[str, str]]] = []
     for name, _ in rows:
         cells: dict[str, str] = {}
@@ -502,7 +502,7 @@ def render(answers: dict, report_name: str) -> str:
     # 报头·临近节点提示（独立块形态）：仅当生成日距前瞻节点 ≤60 天时输出，
     # 否则整块不生成（对齐 references/validity-checklist.md「前瞻节点提醒」）。
     # 节点表同源于 lookups.py FORWARD_NODES，不另抄一份。
-    upcoming = forward_nodes_within(session_date)
+    upcoming = forward_nodes_within(session_date, jurisdictions=jurisdictions)
     if upcoming:
         lines.append("> **临近节点提示**：报告生成日距下列前瞻节点不足 60 天，请优先排期——")
         for node_date, item, target in upcoming:
@@ -533,11 +533,11 @@ def render(answers: dict, report_name: str) -> str:
     # 二、义务总览
     lines.append("## 二、义务总览（价值链环节×法域）")
     lines.append("")
-    header = "| 价值链环节 | " + " | ".join(JURIS_ORDER) + " | 最迟履行节点 | 优先级 |"
+    header = "| 价值链环节 | " + " | ".join(jurisdictions) + " | 最迟履行节点 | 优先级 |"
     lines.append(header)
-    lines.append("|" + "------------|" * (len(JURIS_ORDER) + 3))
+    lines.append("|" + "------------|" * (len(jurisdictions) + 3))
     for name, cells in overview_rows(answers, jurisdictions):
-        cells_line = " | ".join(cells[j] for j in JURIS_ORDER)
+        cells_line = " | ".join(cells[j] for j in jurisdictions)
         lines.append(f"| {name} | {cells_line} | {PLACEHOLDER} | {PLACEHOLDER} |")
     lines.append("")
 
@@ -602,8 +602,9 @@ def render(answers: dict, report_name: str) -> str:
         )
         lines.append("")
 
-    # 四、罚则对比（行主键固定三地，但只列在范围内的法域）
-    lines.append("## 四、三地罚则对比")
+    # 四、罚则对比（单法域使用范围中性的标题，三法域保留既有标题）
+    penalty_title = "三地罚则对比" if len(jurisdictions) == len(JURIS_ORDER) else "罚则与执法概览"
+    lines.append(f"## 四、{penalty_title}")
     lines.append("")
     lines.append("| 法域 | 罚则 | 执法主体 | 依据 |")
     lines.append("|------|------|----------|------|")
@@ -718,11 +719,17 @@ def render(answers: dict, report_name: str) -> str:
     lines.append(f"- 生成日期：{session_date} ｜ 效力核验日期：{PLACEHOLDER}")
     lines.append(f"- 范围声明（每份报告必含）：{PLACEHOLDER}（照搬 modeA-questionnaire 的范围声明原文）")
     lines.append(f"- 依据：{PLACEHOLDER}")
-    lines.append(
-        f"- 法规时效声明：本清单知识截止于 {PLACEHOLDER}；加州义务按 SB 1000 生效版撰写"
-        "（2026-09-30 州长签署，紧急法案即时生效；Chapter 861, Statutes of 2026）。"
-        "如遇后续修订，请以最新官方文本为准，并可提示 agent「按最新法规重新解读」。"
+    validity_statement = (
+        f"- 法规时效声明：本清单知识截止于 {PLACEHOLDER}；"
+        "各法域以对应官方文本为准。"
     )
+    if "加州" in jurisdictions:
+        validity_statement += (
+            "加州义务按 SB 1000 生效版撰写（2026-09-30 州长签署，"
+            "紧急法案即时生效；Chapter 861, Statutes of 2026）。"
+        )
+    validity_statement += "如遇后续修订，请以最新官方文本为准，并可提示 agent「按最新法规重新解读」。"
+    lines.append(validity_statement)
     lines.append("")
 
     return "\n".join(lines) + "\n"

@@ -83,7 +83,7 @@ CATALOG: list[tuple[str, str, str]] = [
     ("W-01", "W", "斜体（`*…*`）不用于承载警示（报告格式铁律）"),
     ("W-02", "W", "脚注非概括性（不以「含」「等」起止）"),
     ("W-03", "W", "正文义务措辞不混用「必须」（L3 应用「应当」/「建议」）"),
-    ("W-04", "W", "范围不含加州时效力核验节不得出现 SB 1000 / leginfo 行（对方 B9）"),
+    ("W-04", "W", "范围不含加州时效力核验节不得出现 SB 1000 行（对方 B9）"),
     ("W-05", "W", "罚则对比表单元格不含「前瞻」类字样（对方 B10）"),
     ("W-06", "W", "义务总览「不适用」行占比未超阈值（对方 B8）"),
     ("W-07", "W", "加州三类状态不括号并列（⑯⑰⑱）"),
@@ -162,6 +162,66 @@ FIELD_TOKEN_RE = re.compile(r"(" + _FIELD_NAMES_PAT + r")\s*[:：]")
 FIELD_ALIASES = {"生效日期": "生效/适用", "适用日期": "生效/适用"}
 CORE_FIELDS = ("责任主体", "生效/适用", "未合规后果")   # E-10 三个核心字段
 EVIDENCE_FIELD = "证据等级"                            # E-11
+
+
+def _table_cells(line: str) -> list[str] | None:
+    """Split one Markdown table row without treating ordinary prose as a row."""
+    stripped = line.strip()
+    if not stripped.startswith("|") or stripped.count("|") < 2:
+        return None
+    cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+    if not cells or all(not cell for cell in cells):
+        return None
+    if all(re.fullmatch(r"[:\-\s]+", cell or "-") for cell in cells):
+        return None
+    return cells
+
+
+def _sb1000_validity_row(lines: list[str]) -> tuple[dict[str, int], list[str], int] | None:
+    """Return the SB1000 row keyed by its own law column, not by any URL text."""
+    headers: dict[str, int] = {}
+    header_end = -1
+    for index, line in enumerate(lines):
+        cells = _table_cells(line)
+        if not cells:
+            continue
+        normalised = [re.sub(r"\s+", "", cell) for cell in cells]
+        for key, aliases in {
+            "law": ("法规", "法规/文件", "法规文件"),
+            "status": ("效力", "效力状态"),
+            "date": ("核验日期", "日期"),
+            "source": ("来源", "核验来源"),
+        }.items():
+            if key not in headers:
+                for alias in aliases:
+                    if alias in normalised:
+                        headers[key] = normalised.index(alias)
+                        break
+        if "law" in headers and "status" in headers and "date" in headers and "source" in headers:
+            header_end = index
+            break
+    if header_end < 0:
+        return None
+    law_index = headers["law"]
+    for index in range(header_end + 1, len(lines)):
+        cells = _table_cells(lines[index])
+        if not cells or law_index >= len(cells):
+            continue
+        if re.search(r"SB\s*1000", cells[law_index], flags=re.IGNORECASE):
+            return headers, cells, index
+    return None
+
+
+def _missing_sb1000_fields(headers: dict[str, int], cells: list[str]) -> list[str]:
+    """Return required SB1000 row fields that are empty or still placeholders."""
+    labels = {"status": "效力状态", "date": "核验日期", "source": "来源"}
+    missing: list[str] = []
+    for key, label in labels.items():
+        index = headers[key]
+        value = cells[index].strip() if index < len(cells) else ""
+        if not value or re.search(r"\{待填|待核(?:：|:)?\s*\}?$", value):
+            missing.append(label)
+    return missing
 
 
 def canon_field(name: str) -> str:
@@ -538,26 +598,31 @@ def check_report(path: Path, jurisdictions: set[str], lang: str, mode: str, root
     if structure["validity"] is not None:
         start, end = structure["validity"]
         seg = "\n".join(lines[start:end])
-        has_sb1000 = "SB 1000" in seg or "SB1000" in seg or "leginfo" in seg
-        if "CA" in jurisdictions and not has_sb1000:
-            findings.append(Finding("E-09", start + 1, "范围含加州，但效力核验节缺 SB 1000 状态行（⑮）"))
+        sb1000_row = _sb1000_validity_row(lines[start:end])
+        has_sb1000 = sb1000_row is not None
+        sb1000_missing: list[str] = []
+        if sb1000_row is not None:
+            sb_headers, sb_cells, _sb_index = sb1000_row
+            sb1000_missing = _missing_sb1000_fields(sb_headers, sb_cells)
+        if "CA" in jurisdictions and (not has_sb1000 or sb1000_missing):
+            if not has_sb1000:
+                detail = "效力核验节缺 SB 1000 法规行"
+            else:
+                detail = "SB 1000 行缺少" + "、".join(sb1000_missing)
+            findings.append(Finding("E-09", start + 1, f"范围含加州，但{detail}（⑮）"))
         if "CA" not in jurisdictions and has_sb1000 and mode == "A":
             findings.append(
-                Finding("W-04", start + 1, "范围不含加州，效力核验节却出现 SB 1000 / leginfo 行，建议移除（对方 B9）")
+                Finding("W-04", start + 1, "范围不含加州，效力核验节却出现 SB 1000 行，建议移除（对方 B9）")
             )
 
         # ---- W-16 SB 1000 效力三方一致性 ----
         # 报告内部三方自洽：义务基准行 × 效力核验表 SB 1000 行 × 临近节点提示。
         # 检查义务基准、效力核验表状态行和临近节点提示之间的一致性。
         # 待签署信号按未决措辞识别；生效信号覆盖即时生效和章号表述。
-        # 信号优先取SB 1000状态行，避免通用法规行影响状态判断；找不到时回退扫描整个效力节。
+        # 信号只取SB 1000状态行，避免通用法规行影响状态判断。
         if "CA" in jurisdictions and has_sb1000:
-            _stat_lines = [
-                l for l in lines[start:end]
-                if ("SB 1000" in l or "SB1000" in l)
-                and ("CAITA" in l or "修正案" in l)
-            ]
-            row_seg = "\n".join(_stat_lines) or seg
+            _sb_headers, _sb_cells, _sb_index = sb1000_row
+            row_seg = lines[start:end][_sb_index]
             sb1000_row_says_pending = bool(
                 re.search(r"待.{0,4}签署|未(获)?签署|州长.{0,10}(尚未|未予|未|不予|没能)(签署|否决)", row_seg)
             )
@@ -663,36 +728,31 @@ def check_report(path: Path, jurisdictions: set[str], lang: str, mode: str, root
                 spans = [("（整节）", detail, end)]
             for name, s, e in spans:
                 seg = lines[s:e]
-                # 排除两类非义务条目：
-                #  ① CoP 分组行（C1–C4）——归 ⑭／E-08／W-12，防双重治理；
-                #  ② 零义务／非义务条目（NON_DUTY_SIGNALS）——无义务可履行，自无字段可言。
-                items = [
-                    ln for ln in seg
-                    if ITEM_RE.match(ln)
-                    and not COP_GROUP_RE.search(ln)
-                    and not any(sig in ln for sig in NON_DUTY_SIGNALS)
+                item_indexes = [idx for idx, ln in enumerate(seg) if ITEM_RE.match(ln)]
+                item_spans = [
+                    (idx, item_indexes[pos + 1] if pos + 1 < len(item_indexes) else len(seg))
+                    for pos, idx in enumerate(item_indexes)
                 ]
-                fields = [ln for ln in seg if FIELD_RE.match(ln)]
-                field_names: set[str] = set()
-                for ln in seg:
-                    field_names.update(canon_field(tok) for tok in FIELD_TOKEN_RE.findall(ln))
-                if items and not fields:
-                    findings.append(
-                        Finding(
-                            "E-10",
-                            s + 1,
-                            f"「{name}」节义务条目存在但整节无字段行（每项应含责任主体/生效适用/未合规后果，阶段4硬性要求1）",
+                for item_start, item_end in item_spans:
+                    item_lines = seg[item_start:item_end]
+                    title = item_lines[0].strip()
+                    # 先按全部条目标题切段，再过滤CoP/非义务项，防止字段串到相邻义务。
+                    if COP_GROUP_RE.search(title) or any(sig in title for sig in NON_DUTY_SIGNALS):
+                        continue
+                    field_names: set[str] = set()
+                    for ln in item_lines:
+                        field_names.update(canon_field(tok) for tok in FIELD_TOKEN_RE.findall(ln))
+                    line_no = s + item_start + 1
+                    label = re.sub(r"^\*+\s*", "", title).strip() or "该义务条目"
+                    if not set(CORE_FIELDS) <= field_names:
+                        miss = "、".join(f for f in CORE_FIELDS if f not in field_names)
+                        findings.append(
+                            Finding("E-10", line_no, f"{label}字段不全，缺：{miss}（阶段4硬性要求1）")
                         )
-                    )
-                elif items and not set(CORE_FIELDS) <= field_names:
-                    miss = "、".join(f for f in CORE_FIELDS if f not in field_names)
-                    findings.append(
-                        Finding("E-10", s + 1, f"「{name}」节字段不全，缺：{miss}（阶段4硬性要求1）")
-                    )
-                if items and EVIDENCE_FIELD not in field_names:
-                    findings.append(
-                        Finding("E-11", s + 1, f"「{name}」节义务条目未标「证据等级」（阶段4硬性要求3）")
-                    )
+                    if EVIDENCE_FIELD not in field_names:
+                        findings.append(
+                            Finding("E-11", line_no, f"{label}未标「证据等级」（阶段4硬性要求3）")
+                        )
 
     # ---- W-14 效力核验记录覆盖率（L6「每部被引法规一行」）----
     # 依赖与「是否存在义务详述节」无关（缺该节者更应查），故不设 detail 前置。
