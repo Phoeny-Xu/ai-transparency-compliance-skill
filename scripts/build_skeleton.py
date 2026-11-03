@@ -410,8 +410,12 @@ def current_practices_block(answers: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def overview_rows(answers: dict, jurisdictions: list[str]) -> list[tuple[str, dict[str, str]]]:
-    """按价值链环节生成总览行；单元格一律占位，不做定性。"""
+def overview_rows(answers: dict, jurisdictions: list[str]) -> list[tuple[str, str]]:
+    """按价值链环节生成总览候选行（活动×范围内法域）；不做定性。
+
+    返回值为生成阶段的待筛候选：最终报告只保留判定为正向适用的组合；
+    无正向义务但需要读者了解的组合转入「已核验但未触发事项」筛查表。
+    """
     rows: list[tuple[str, dict[str, str]]] = []
 
     a1 = str(answers.get("A1", ""))
@@ -446,22 +450,30 @@ def overview_rows(answers: dict, jurisdictions: list[str]) -> list[tuple[str, di
         if role in {"advertising_medium", "both", "unknown"}:
             rows.append(("第三方广告传播媒介运营", {}))
 
-    # 补占位：每行按范围内法域填占位；返回字典仍保留三地键，供兼容调用方读取。
-    filled: list[tuple[str, dict[str, str]]] = []
-    for name, _ in rows:
-        cells: dict[str, str] = {}
-        for juris in JURIS_ORDER:
-            if juris in jurisdictions:
-                cells[juris] = PLACEHOLDER
-            else:
-                cells[juris] = "不适用（本次范围未含）"
-        filled.append((name, cells))
-    return filled
+    # 候选对（活动×范围内法域）：仅为生成阶段的待筛清单，不代表每个组合都存在义务；
+    # 定性后无正向义务的候选行从主表删除，需要读者了解的转入筛查结果表。
+    return [
+        (name, juris)
+        for name, _ in rows
+        for juris in JURIS_ORDER
+        if juris in jurisdictions
+    ]
 
 
 # ---------------------------------------------------------------------------
 # 骨架渲染
 # ---------------------------------------------------------------------------
+
+
+def render_screening_table() -> list[str]:
+    """三节末筛查表骨架：只输出表头与一条待填模板行，不生成义务字段。"""
+    return [
+        "### 已核验但未触发事项", "",
+        "| 法域 | 法规／事项 | 筛查状态 | 简要理由 |",
+        "|---|---|---|---|",
+        f"| {PLACEHOLDER} | {PLACEHOLDER} | {PLACEHOLDER} | {PLACEHOLDER} |",
+        "",
+    ]
 
 
 def render(answers: dict, report_name: str) -> str:
@@ -530,15 +542,16 @@ def render(answers: dict, report_name: str) -> str:
     # 现状盘点（B10）：A3 非空（生成型）时机械列示；纯分析型不生成该块（B10 未触发）。
     lines.extend(current_practices_block(answers))
 
-    # 二、义务总览
-    lines.append("## 二、义务总览（价值链环节×法域）")
+    # 二、适用义务总览（逐项长表：活动／主体＋法域＋状态；候选行定性后删除无正向义务者）
+    lines.append("## 二、适用义务总览")
     lines.append("")
-    header = "| 价值链环节 | " + " | ".join(jurisdictions) + " | 最迟履行节点 | 优先级 |"
-    lines.append(header)
-    lines.append("|" + "------------|" * (len(jurisdictions) + 3))
-    for name, cells in overview_rows(answers, jurisdictions):
-        cells_line = " | ".join(cells[j] for j in jurisdictions)
-        lines.append(f"| {name} | {cells_line} | {PLACEHOLDER} | {PLACEHOLDER} |")
+    lines.append("| 价值链活动／主体 | 法域 | 状态 | 义务摘要 | 最迟履行节点 | 优先级 |")
+    lines.append("|---|---|---|---|---|---|")
+    for activity, juris in overview_rows(answers, jurisdictions):
+        lines.append(
+            f"| {activity} | {juris} | {PLACEHOLDER} | {PLACEHOLDER} | "
+            f"{PLACEHOLDER} | {PLACEHOLDER} |"
+        )
     lines.append("")
 
     # 三节结构占位（字段名取自模板，字段值一律 {待填：…}；不写任何法律定性）
@@ -566,28 +579,16 @@ def render(answers: dict, report_name: str) -> str:
             if layer_title:
                 lines.append(f"#### {layer_title}")
                 lines.append("")
-            lines.append("**(1) {待填：义务名称}**")
-            lines.append("")
-            lines.append("根据{待填：法规名与条号}，{待填：义务内容}。")
-            lines.append("")
-            for label in DUTY_FIELD_LABELS:
-                lines.append(f"- {label}：{PLACEHOLDER}")
+            lines.append(
+                "<!-- 仅为已判定适用、条件适用或已适用待生效的义务添加义务块"
+                "（标题＋依据句＋字段块）；无义务时删除本占位，不生成空字段。 -->"
+            )
             lines.append("")
 
         if juris == "欧盟":
-            lines.append("**M{待填：Measure编号} {待填：措施名}**[^cop_s{待填}_c{待填}_m{待填}]")
-            lines.append("")
-            lines.append(f"- **层级**：{PLACEHOLDER}")
-            lines.append(f"- **要求内容**：{PLACEHOLDER}")
-            lines.append("- **技术与操作要点**：")
-            lines.append(f"  1. {PLACEHOLDER}")
-            lines.append(f"  2. {PLACEHOLDER}")
-            lines.append("")
-            lines.append("<!-- cop:item id={待填：注册表ID} points={待填：正文已覆盖的注册点} -->")
-            lines.append("")
             lines.append(
-                "[^cop_s{待填}_c{待填}_m{待填}]: 《AI生成内容透明度行为准则》"
-                "Section {待填}，Commitment {待填}，Measure {待填}；对应AI Act Art. 50({待填})。"
+                "<!-- 仅展开已核验为applicable或conditional的CoP Measure；无对应Measure时"
+                "按规则说明原因，不保留空字段块、不生成cop:item或占位脚注。 -->"
             )
             lines.append("")
 
@@ -601,6 +602,9 @@ def render(answers: dict, report_name: str) -> str:
             "{待填：多角色时逐条说明义务叠加／转致／联动；仅单一角色时写「无角色间义务关系需说明」}"
         )
         lines.append("")
+
+    # 三节末：已核验但未触发事项筛查表（四列模板；无实质内容时定稿删除整节）
+    lines.extend(render_screening_table())
 
     # 四、罚则对比（单法域使用范围中性的标题，三法域保留既有标题）
     penalty_title = "三地罚则对比" if len(jurisdictions) == len(JURIS_ORDER) else "罚则与执法概览"
@@ -618,6 +622,8 @@ def render(answers: dict, report_name: str) -> str:
 
     # 五、落地建议
     lines.append("## 五、落地建议（基于上文法定义务的跨法域落地措施）")
+    lines.append("")
+    lines.append("<!-- 可见主题标题使用中文，可附英文括注；ASCII主题键仅写入cop:recommendation HTML注释。 -->")
     lines.append("")
     lines.append(f"### 主题一：{PLACEHOLDER}")
     lines.append("")

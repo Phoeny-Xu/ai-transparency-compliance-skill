@@ -44,6 +44,7 @@ import difflib
 import re
 import sys
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 
@@ -85,7 +86,8 @@ CATALOG: list[tuple[str, str, str]] = [
     ("W-03", "W", "正文义务措辞不混用「必须」（L3 应用「应当」/「建议」）"),
     ("W-04", "W", "范围不含加州时效力核验节不得出现 SB 1000 行（对方 B9）"),
     ("W-05", "W", "罚则对比表单元格不含「前瞻」类字样（对方 B10）"),
-    ("W-06", "W", "义务总览「不适用」行占比未超阈值（对方 B8）"),
+    ("W-06", "W", "适用义务总览结构与筛查分区（状态列值域／字段值状态形态／筛查表四列齐全；模式A）"),
+    ("W-29", "W", "法域有正向义务详述而适用义务总览无该法域正向行（跨区覆盖弱底线）"),
     ("W-07", "W", "加州三类状态不括号并列（⑯⑰⑱）"),
     ("W-08", "W", "中英双语段段对应（⑳，仅 --lang zh-en）"),
     ("W-09", "W", "欧盟节无「仅内部使用→不适用」类已知反模式结论（对方 A1 弱信号）"),
@@ -1057,34 +1059,352 @@ def check_report(path: Path, jurisdictions: set[str], lang: str, mode: str, root
                         Finding("W-05", i + 1, "罚则对比表出现「前瞻/待生效」字样，防误读为现行法（对方 B10）", lines[i].strip()[:60])
                     )
 
-    # ---- W-06 「不适用」行占比 ----
+    # ---- W-06 适用义务总览结构 / 筛查分区 / 字段值状态形态（模式A）----
+    STATUS_NEGATIVE = ("当前未触发", "不适用", "范围未纳入")
+    PLACEHOLDER_TOKEN_RE = re.compile(r"\{待填：…\}")
+    STATUS_POSITIVE = ("适用", "条件适用")
+    STATUS_PENDING_RE = re.compile(
+        r"^已适用、义务待生效(?:（(?P<full>\d{4}-\d{2}-\d{2})）|\((?P<ascii>\d{4}-\d{2}-\d{2})\))?$"
+    )
+    JURIS_ALIAS = {
+        "中国大陆": "CN", "中国": "CN", "欧盟": "EU", "加州": "CA", "美国加州": "CA",
+    }
+
+    def _norm_status(value: str) -> str:
+        return re.sub(r"\s+", "", value).replace("，", "、")
+
+    def _is_positive_status(value: str) -> bool:
+        if value in STATUS_POSITIVE:
+            return True
+        match = STATUS_PENDING_RE.fullmatch(value)
+        if not match:
+            return False
+        date_value = match.group("full") or match.group("ascii")
+        if date_value:
+            try:
+                date.fromisoformat(date_value)
+            except ValueError:
+                return False
+        return True
+
+    effective_screening_rows = 0
+    positive_overview_rows = 0
     overview_start = None
     for i, level, t in structure["headings"]:
-        if "义务总览" in t:
+        if "适用义务总览" in t or "义务总览" in t:
             overview_start = i
             break
-    if overview_start is not None:
-        end = len(lines)
+    overview_end = len(lines)
+    positive_overview_juris: set[str] = set()
+    if overview_start is not None and mode == "A":
         for i, level, _ in structure["headings"]:
             if i > overview_start and level <= 2:
-                end = i
+                overview_end = i
                 break
-        rows = [l for l in lines[overview_start:end] if l.strip().startswith("|") and l.count("|") >= 3]
-        rows = [r for r in rows if not re.match(r"^\s*\|[\s:\-|]+\|\s*$", r)]
-        if len(rows) > 1:
-            na = sum(1 for r in rows if "不适用" in r)
-            ratio = na / len(rows)
-            # 「不适用」比例阈值随范围内法域数减少而提高；双法域取两端之间的线性插值。
-            in_scope = max(1, min(3, len(jurisdictions)))
-            w06_threshold = 0.6 + 0.25 * (3 - in_scope) / 2
-            if ratio > w06_threshold:
+        header_row = None
+        for i in range(overview_start + 1, overview_end):
+            cells = _table_cells(lines[i])
+            if cells and "状态" in cells:
+                header_row = (i, cells.index("状态"), cells)
+                break
+        if header_row is None:
+            findings.append(
+                Finding("W-06", overview_start + 1, "适用义务总览缺少状态列表头，须人工核对")
+            )
+        else:
+            header_index, status_index, header_cells = header_row
+            juris_index = header_cells.index("法域") if "法域" in header_cells else None
+            for i in range(header_index + 1, overview_end):
+                cells = _table_cells(lines[i])
+                if not cells or status_index >= len(cells):
+                    continue
+                status_key = _norm_status(cells[status_index])
+                if PLACEHOLDER_TOKEN_RE.fullmatch(status_key):
+                    # 骨架占位行（{待填：…}）：状态待填不判违规，不计入正向法域，
+                    # 也不计入零义务判断的有效数据行
+                    continue
+                status_is_positive = _is_positive_status(status_key)
+                if status_is_positive:
+                    positive_overview_rows += 1
+                if "待核实" in status_key:
+                    findings.append(
+                        Finding("W-06", i + 1, "待核实事项应列入待核事实清单")
+                    )
+                elif any(value in status_key for value in STATUS_NEGATIVE):
+                    findings.append(
+                        Finding("W-06", i + 1, "适用义务总览含未触发状态；移入独立筛查表")
+                    )
+                elif not status_is_positive:
+                    findings.append(
+                        Finding(
+                            "W-06",
+                            i + 1,
+                            "适用义务总览状态为空、未定或不在允许值域内"
+                            "（规范值：适用／条件适用／已适用、义务待生效，可附有效日期YYYY-MM-DD）",
+                        )
+                    )
+                if (
+                    juris_index is not None
+                    and juris_index < len(cells)
+                    and status_is_positive
+                ):
+                    code = JURIS_ALIAS.get(cells[juris_index].strip())
+                    if code:
+                        positive_overview_juris.add(code)
+            # 零义务场景提醒移至筛查表实质行统计完成后判断（见 W-06(a2)）。
+
+    # ---- W-06(b) 筛查表结构（已核验但未触发事项）----
+    screen_start = None
+    if mode == "A":
+        for i, level, t in structure["headings"]:
+            if level == 3 and "已核验但未触发事项" in t:
+                screen_start = i
+                break
+    if mode == "A" and screen_start is not None:
+        screen_end = len(lines)
+        for i, level, _ in structure["headings"]:
+            if i > screen_start and level <= 3:
+                screen_end = i
+                break
+        header_row = None
+        for i in range(screen_start + 1, screen_end):
+            cells = _table_cells(lines[i])
+            if cells and "筛查状态" in cells:
+                header_row = (i, cells)
+                break
+        if header_row is None:
+            # 回退：缺「筛查状态」列时按含「法域」列定位，仍走缺列逐项检查
+            for i in range(screen_start + 1, screen_end):
+                cells = _table_cells(lines[i])
+                if cells and "法域" in cells:
+                    header_row = (i, cells)
+                    break
+        if header_row is None:
+            findings.append(
+                Finding("W-06", screen_start + 1, "筛查表缺少表头（法域／法规／事项／筛查状态／简要理由）")
+            )
+        else:
+            header_index, cells = header_row
+            required = ("法域", "法规／事项", "筛查状态", "简要理由")
+            missing_cols = [c for c in required if c not in cells]
+            if missing_cols:
                 findings.append(
                     Finding(
                         "W-06",
-                        overview_start + 1,
-                        f"义务总览「不适用」行占比 {na}/{len(rows)}（{ratio:.0%}）偏高，核对是否属零义务场景应精简结构（对方 B8）",
+                        header_index + 1,
+                        "筛查表缺少列：" + "、".join(missing_cols),
                     )
                 )
+            else:
+                idx = {c: cells.index(c) for c in required}
+                placeholder_re = re.compile(r"\{待填|待核(?:：|:)?\s*\}?$")
+
+                def _norm_cell(v: str) -> str:
+                    return re.sub(r"\s+", "", v)
+
+                for i in range(header_index + 1, screen_end):
+                    row = _table_cells(lines[i])
+                    if not row:
+                        continue
+                    for col, col_index in idx.items():
+                        if col_index >= len(row):
+                            findings.append(
+                                Finding("W-06", i + 1, f"筛查表「{col}」列缺失")
+                            )
+                            break
+                    else:
+                        values = {c: _norm_cell(row[idx[c]]) for c in required}
+                        all_placeholder = all(
+                            PLACEHOLDER_TOKEN_RE.fullmatch(v) for v in values.values()
+                        )
+                        if all_placeholder:
+                            # 整行均为骨架占位模板：四列齐全即通过，不计入实质筛查结论
+                            continue
+                        # 部分填写行逐格校验，不得整行跳过
+                        if values["法域"] not in JURIS_ALIAS:
+                            findings.append(
+                                Finding(
+                                    "W-06",
+                                    i + 1,
+                                    f"筛查表法域无效：{row[idx['法域']].strip()!r}",
+                                )
+                            )
+                        if values["筛查状态"] not in STATUS_NEGATIVE:
+                            findings.append(
+                                Finding(
+                                    "W-06",
+                                    i + 1,
+                                    "筛查表状态应为当前未触发／不适用／范围未纳入"
+                                    "（精确值；限定词写入理由列）",
+                                )
+                            )
+                        reason = row[idx["简要理由"]].strip()
+                        if not reason or placeholder_re.search(reason):
+                            findings.append(
+                                Finding("W-06", i + 1, "筛查表简要理由为空或占位")
+                            )
+                        item = row[idx["法规／事项"]].strip()
+                        item_valid = bool(item) and not placeholder_re.search(item)
+                        if not item_valid:
+                            findings.append(
+                                Finding("W-06", i + 1, "筛查表「法规／事项」为空或占位")
+                            )
+                        # 实质筛查结论：法域有效＋状态合法＋理由非占位
+                        if (
+                            values["法域"] in JURIS_ALIAS
+                            and values["筛查状态"] in STATUS_NEGATIVE
+                            and item_valid
+                            and reason
+                            and not placeholder_re.search(reason)
+                        ):
+                            effective_screening_rows += 1
+
+    # ---- W-06(a2) 零义务场景提醒：无有效正向行且无实质筛查结论（在筛查统计后判断）----
+    if (
+        mode == "A"
+        and overview_start is not None
+        and positive_overview_rows == 0
+        and effective_screening_rows == 0
+    ):
+        findings.append(
+            Finding(
+                "W-06",
+                overview_start + 1,
+                "适用义务总览无正向行且筛查表无实质结论：经筛查确无适用义务时，"
+                "请核对范围声明、逐法筛查依据与零义务结论",
+            )
+        )
+
+    # ---- W-06(d) 落地建议可见标题语言（仅模式A；ASCII键仅限机器注释）----
+    if mode == "A":
+        topic_prefix_re = re.compile(r"^主题(?:[一二三四五六七八九十0-9]+)?[：:]\s*")
+        english_note_re = re.compile(r"（[^（）]*）|\([^()]*\)")
+        cop_key_re = re.compile(r"\bcop:[A-Za-z0-9_.-]+\b", re.IGNORECASE)
+
+        def _needs_chinese_title(title: str) -> bool:
+            if cop_key_re.search(title):
+                return True
+            visible_title = topic_prefix_re.sub("", title.strip())
+            visible_title = english_note_re.sub("", visible_title).strip()
+            has_english = re.search(r"[A-Za-z]", visible_title) is not None
+            has_chinese = re.search(r"[\u4e00-\u9fff]", visible_title) is not None
+            return has_english and not has_chinese
+
+        sug_start = None
+        for i, level, t in structure["headings"]:
+            if level == 2 and "落地建议" in t:
+                sug_start = i
+                break
+        if sug_start is not None:
+            sug_end = len(lines)
+            for i, level, _ in structure["headings"]:
+                if i > sug_start and level <= 2:
+                    sug_end = i
+                    break
+            for i, level, title in structure["headings"]:
+                if sug_start < i < sug_end and level >= 3 and in_body(i) and _needs_chinese_title(title):
+                    findings.append(
+                        Finding(
+                            "W-06",
+                            i + 1,
+                            "落地建议标题应为中文，ASCII键仅限cop:recommendation机器注释",
+                        )
+                    )
+
+    # ---- W-06(c) 义务详述字段值状态形态（仅模式A）----
+    if mode == "A":
+        detail = None
+        for i, level, t in structure["headings"]:
+            if level == 2 and any(k in t for k in DETAIL_HEADING_KEYS):
+                detail = i
+                break
+        if detail is not None:
+            detail_end = len(lines)
+            for i, level, _ in structure["headings"]:
+                if i > detail and level <= 2:
+                    detail_end = i
+                    break
+            field_status_re = re.compile(
+                r"^(不适用|当前未触发|范围未纳入)(?=$|[ \t（(，,；;。:：])"
+            )
+            for i in range(detail, detail_end):
+                if not in_body(i):
+                    continue
+                match = FIELD_RE.match(lines[i])
+                if match:
+                    value = re.split(r"[:：]", lines[i], maxsplit=1)[1].strip()
+                    if field_status_re.match(value):
+                        findings.append(
+                            Finding(
+                                "W-06",
+                                i + 1,
+                                "未触发事项不应重复填写义务字段；转入筛查表",
+                            )
+                        )
+
+    # ---- W-29 跨区覆盖弱底线：法域有正向详述而总览无该法域正向行 ----
+    if mode == "A" and overview_start is not None:
+        detail = None
+        for i, level, t in structure["headings"]:
+            if level == 2 and any(k in t for k in DETAIL_HEADING_KEYS):
+                detail = i
+                break
+        if detail is not None:
+            detail_end = len(lines)
+            for i, level, _ in structure["headings"]:
+                if i > detail and level <= 2:
+                    detail_end = i
+                    break
+            # 法域区段归属：只认法域标题为区段起点；四级及更深标题是法域内部结构，
+            # 不终止归属。进入筛查小节后停止归集（筛查行不计正向义务）。
+            screen_heading = next(
+                (i for i, lv, t in structure["headings"]
+                 if detail < i < detail_end and lv >= 3 and "已核验但未触发事项" in t),
+                None,
+            )
+            juris_bounds = []
+            for i, lv, t in structure["headings"]:
+                if not (detail < i < detail_end) or lv < 3:
+                    continue
+                name_stripped = t.lstrip("#").strip()
+                matched_code = None
+                for alias, code in sorted(JURIS_ALIAS.items(), key=lambda item: -len(item[0])):
+                    boundary = rf"^{re.escape(alias)}(?=$|[\s（(：:、|｜—–-])"
+                    if re.match(boundary, name_stripped):
+                        matched_code = code
+                        break
+                if matched_code:
+                    juris_bounds.append((i, matched_code, name_stripped))
+            spans = []
+            for k, (i, code, name) in enumerate(juris_bounds):
+                stop = juris_bounds[k + 1][0] if k + 1 < len(juris_bounds) else detail_end
+                if screen_heading is not None:
+                    stop = min(stop, screen_heading)
+                spans.append((code, name, i, stop))
+            for code, name, s, e in spans:
+                seg = lines[s:e]
+                item_indexes = [idx for idx, ln in enumerate(seg) if ITEM_RE.match(ln)]
+                positive_items = [
+                    idx for idx in item_indexes
+                    if not COP_GROUP_RE.search(seg[idx])
+                    and not any(sig in seg[idx] for sig in NON_DUTY_SIGNALS)
+                ]
+                # 实际写入的CoP Measure标题（**M1.1 …**）也计为该法域正向条目
+                measure_items = [
+                    idx for idx, ln in enumerate(seg)
+                    if re.match(r"^\s*\*\*M\d+(\.\d+)?[\s　]", ln)
+                ]
+                if not positive_items and not measure_items:
+                    continue
+                if code not in positive_overview_juris:
+                    first = positive_items[0] if positive_items else measure_items[0]
+                    findings.append(
+                        Finding(
+                            "W-29",
+                            s + first + 1,
+                            f"{name}有正向义务详述，但适用义务总览没有对应法域正向行",
+                        )
+                    )
 
     # ---- W-07 加州三态括号并列 ----
     if "CA" in jurisdictions:

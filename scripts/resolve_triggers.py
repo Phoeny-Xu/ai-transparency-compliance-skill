@@ -328,7 +328,7 @@ TRIGGER_TABLE: list[dict] = [
     {
         # Art. 50(4)第1-2项（深度伪造：图像/音频/视频）单独触发和落盘，
         # 与 B6（第 3 项·公共利益文本）同属该款但对**不同模态**，故单列一行触发状态、
-        # 独立落盘 `B6_deepfake`；呈现仍并入 B6 卡（一次采集，不增交互轮次）。
+        # 独立落盘 `B6_deepfake`；呈现时①与④应当同轮或相邻两轮采集，②③按①的门控后置呈现，不因对话通道上限跳过任一支。
         "id": "B6-深伪",
         "depends_on": {"A6", "A3"},
         "cond": lambda a: _a6_has(a, "欧盟") and _a3_any(a, ("图像", "音频", "视频")),
@@ -357,6 +357,12 @@ TRIGGER_TABLE: list[dict] = [
         "depends_on": {"A3"},
         "cond": lambda a: _a3_generates(a),
         "desc": "A3功能含生成且有输出模态（纯分析/检测型不问）",
+    },
+    {
+        "id": "B11",
+        "depends_on": {"A6"},
+        "cond": lambda a: _a6_has(a, "欧盟"),
+        "desc": "A6含欧盟（CoP签署事实，不推定provider/deployer）",
     },
     {
         "id": "B12",
