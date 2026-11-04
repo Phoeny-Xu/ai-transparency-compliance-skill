@@ -50,7 +50,7 @@ KNOWN_KEYS = frozenset(
         "B2", "B3a", "B3a_details",
         "B4_1", "B4_2", "B4_2a", "B4_2b", "B4_2c", "B4_2c_details",
         "B5a", "B5b", "B5b_interactive", "B5b_chat_status", "B5b_other_chat_confirmed",
-        "B6", "B6_deepfake", "B7", "B8_1", "B8_2", "B8_3", "B8_4", "B9", "B10_current_practices", "B11_cop",
+        "B6", "B6_deepfake", "B6_publish", "B7", "B8_1", "B8_2", "B8_3", "B8_4", "B9", "B10_current_practices", "B11_cop",
         "A8_report_language", "A8_footnote_original_text",
         "B12", "B12_companion_status", "B12_human_misidentification_status", "B13",
         "scale_facts", "AB1609_status", "AB1609_recheck",
@@ -162,9 +162,11 @@ _ENUMS = {
     "B4_2c": frozenset({"≤100万", "<=100万", "100万-200万", ">200万", "不确定"}),
     "B6": _YES_NO_UNKNOWN,
     # 欧盟Art. 50(4)第1-2项（深度伪造）的独立落盘位。
-    # 与 B6（第 3 项·公共利益文本）**同卡采集、各自落盘**：单一定义点仍归
+    # 与文本支B6分别记录，但常规内容采集仅B6_publish=是时进入；
+    # 身份不确定先澄清、仍不确定则暂停，不反推身份、不代填内容。单一定义点仍归
     # B13 `identifiable_natural_person`（「可辨识自然人」不在第三处重复定义）。
     "B6_deepfake": _YES_NO_UNKNOWN,
+    "B6_publish": _YES_NO_UNKNOWN,
     "B7": _YES_NO_UNKNOWN,
     "B8_1": _YES_NO_UNKNOWN,
     "B8_2": _YES_NO_UNKNOWN,

@@ -127,6 +127,37 @@ def _a3_any(answers: dict, keys: tuple[str, ...]) -> bool:
     return any(any(k in value for k in keys) for value in _a3_modalities(answers))
 
 
+def b6_deepfake_in_scope(answers: dict) -> bool:
+    """B6深伪卡片的法域和输出模态范围，不判断企业角色或义务。"""
+    return _a6_has(answers, "欧盟") and _a3_any(
+        answers, ("图像", "音频", "视频")
+    )
+
+
+def b6_deepfake_next_action(
+    answers: dict, *, identity_clarification_done: bool = False
+) -> str:
+    """常规问卷的下一步；澄清状态由编排层从会话记录恢复。"""
+    if not b6_deepfake_in_scope(answers):
+        return "skip"
+    if "B6_publish" not in answers:
+        return "ask_identity"
+    publish = answers["B6_publish"]
+    if publish == "否":
+        return "skip"
+    if publish == "不确定":
+        return (
+            "pending_identity" if identity_clarification_done
+            else "clarify_identity"
+        )
+    if publish == "是":
+        return (
+            "ask_content" if "B6_deepfake" not in answers
+            else "content_recorded"
+        )
+    raise ValueError("B6_publish必须先通过规范值校验")
+
+
 # B5b交互布尔的显式值域：缺省True（最严口径，与
 # modeA-questionnaire-business「`B5b_interactive` 派生规则」一致：仅「无自然人直接交互界面」
 # 为 false，其余含「不确定」皆为 true）。若该键被落盘为字符串（如「否」），裸 `bool("否")`
@@ -326,13 +357,20 @@ TRIGGER_TABLE: list[dict] = [
         "desc": "A3含文本 且 A6含欧盟（①承担门控）",
     },
     {
-        # Art. 50(4)第1-2项（深度伪造：图像/音频/视频）单独触发和落盘，
-        # 与 B6（第 3 项·公共利益文本）同属该款但对**不同模态**，故单列一行触发状态、
-        # 独立落盘 `B6_deepfake`；呈现时①与④应当同轮或相邻两轮采集，②③按①的门控后置呈现，不因对话通道上限跳过任一支。
+        # 卡片候选入口，不表示义务适用；缺身份键先问④a。
+        # 下一步由b6_deepfake_next_action区分：仅身份是才采集④b，
+        # 身份不确定先澄清、仍不确定则暂停；否则跳过，不代填内容。
         "id": "B6-深伪",
-        "depends_on": {"A6", "A3"},
-        "cond": lambda a: _a6_has(a, "欧盟") and _a3_any(a, ("图像", "音频", "视频")),
-        "desc": "A3含图像/音频/视频 且 A6含欧盟（Art. 50(4) 第1-2项深伪披露）",
+        "depends_on": {"A6", "A3", "B6_publish"},
+        "cond": lambda a: (
+            b6_deepfake_in_scope(a)
+            and str(a.get("B6_publish", "")).strip() != "否"
+        ),
+        "desc": (
+            "A3含图像/音频/视频且A6含欧盟；缺B6_publish时补问④a；"
+            "④a=是时按答案状态补问④b；④a=不确定先澄清，仍不确定则暂停；"
+            "④a=否则跳过④b（卡片候选不等于义务适用）"
+        ),
     },
     {
         "id": "B7",

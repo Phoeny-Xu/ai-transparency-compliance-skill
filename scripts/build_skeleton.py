@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lookups import ab1609_baseline, forward_nodes_within, sb1000_baseline  # noqa: E402
 from resolve_triggers import (
     _a3_generates,
+    b6_deepfake_in_scope,
     cross_check_capability_modality,
     cross_check_derived_keys,
     cross_check_scale,
@@ -266,16 +267,47 @@ def pending_facts(answers: dict) -> list[tuple[str, str, str]]:
             )
         )
 
-    # Art. 50(4)第1-2项（深度伪造）与B6（第3项·公共利益文本）
-    # 同卡采集、独立落盘；「不确定」按最严口径列入待核（列待核范围，非推定成立）。
-    if str(answers.get("B6_deepfake", "")).strip() == "不确定":
-        rows.append(
-            (
-                "贵司生成/篡改的图像、音频或视频是否构成深度伪造（描绘可辨识自然人或可被误认为真实的事件）",
-                "欧盟 Art. 50(4) 第1-2项深伪披露义务是否触发",
-                "业务方（内容形态/素材来源）/法务确认",
+    # 仅为本次范围内的深伪卡片列待核项，不写法律定性。
+    # 缺键表示尚未采集；不确定表示已询问但事实待核。
+    if b6_deepfake_in_scope(answers):
+        publish = answers.get("B6_publish")
+        deepfake = answers.get("B6_deepfake")
+
+        if "B6_publish" not in answers:
+            rows.append(
+                (
+                    "尚未采集贵司自身发布该系统生成图像、音频或视频的事实",
+                    "欧盟深伪场景的发布事实尚未采集，须补问后再判断",
+                    "业务方（实际发布行为）/法务补问确认",
+                )
             )
-        )
+        elif publish == "不确定":
+            rows.append(
+                (
+                    "贵司自身发布该系统生成图像、音频或视频的事实待核实",
+                    "欧盟深伪场景的身份前提是否成立待确认",
+                    "业务方（实际发布渠道、委托关系与控制情况）/法务确认",
+                )
+            )
+
+        # 身份尚未确认时不催问内容，也不把内容缺键列为漏答。
+        if publish == "是":
+            if "B6_deepfake" not in answers:
+                rows.append(
+                    (
+                        "尚未采集贵司发布的图像、音频或视频是否构成深度伪造",
+                        "欧盟深伪场景的内容前提尚未采集，须补问后再判断",
+                        "业务方（内容形态与素材来源）/法务补问确认",
+                    )
+                )
+            elif deepfake == "不确定":
+                rows.append(
+                    (
+                        "贵司发布的图像、音频或视频是否构成深度伪造待核实",
+                        "欧盟深伪场景的内容前提是否成立待确认",
+                        "业务方（内容形态与素材来源）/法务确认",
+                    )
+                )
 
     if str(answers.get("A2", "")).strip() == "不确定":
         rows.append(
