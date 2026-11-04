@@ -94,6 +94,9 @@
 
 ## 四、落地建议
 
+<!-- 【指令】CoP签署评估按reporting-rules.md第一节第8项执行。未签署或范围不足给出评估建议，不确定给出核实及条件式建议；每个待评估Section的可见段落包含原始状态、Section及评估动作，并紧随cop:signature-review标记（section="Section 1"）（另一部分改为Section 2）。无具体主体的模式B如实记录待核事实，不虚构签署事实。 -->
+
+
 ### 主题一：{控制主题}
 
 - **覆盖义务**：{法条、CoP Measure及机器ID}

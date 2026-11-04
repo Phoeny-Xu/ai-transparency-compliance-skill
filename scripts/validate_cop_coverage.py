@@ -126,6 +126,54 @@ def _source_matches(record: dict, source: str) -> bool:
     return True
 
 
+def signature_review_issues(matrix: dict, report_text: str) -> list[str]:
+    """核验实际签署覆盖不足时的逐Section可见建议，不把计划视为已签。"""
+    signatory = matrix.get("signatory", {})
+    if not isinstance(signatory, dict):
+        return ["签署事实不可读，须先核实"]
+    status = signatory.get("status")
+    relevant = matrix.get("relevant_sections", [])
+    if (not isinstance(status, str) or status not in STATUSES
+            or not isinstance(relevant, list)
+            or any(not isinstance(section, str) or section not in SECTIONS for section in relevant)):
+        return ["签署状态或相关Section无效，须先核实"]
+    signed = signatory.get("sections", []) if status == "已签署" else []
+    needed = set(relevant) - {section for section in signed if isinstance(section, str)} if isinstance(signed, list) else set(relevant)
+    if not needed:
+        return []
+    # 仅消费真实落地建议节，代码块、模板注释和批注不能充当可见建议。
+    clean = re.sub(r"(?ms)^\s*(`{3,}|~{3,})[^\n]*\n.*?^\s*\1[^\n]*$", "", report_text)
+    clean = re.sub(r"<!--.*?-->", lambda m: m.group() if re.fullmatch(
+        r'<!--\s*cop:signature-review\s+section="Section [12]"\s*-->', m.group()) else "", clean, flags=re.S)
+    headings = list(re.finditer(r"(?m)^## (.+)$", clean))
+    blocks = []
+    for i, heading in enumerate(headings):
+        if re.search(r"落地建议|实施建议", heading.group(1)):
+            end = headings[i + 1].start() if i + 1 < len(headings) else len(clean)
+            blocks.append(clean[heading.end():end])
+    recommendations = "\n".join(blocks)
+    markers = re.compile(r'<!--\s*cop:signature-review\s+section="(Section [12])"\s*-->')
+    covered = set()
+    start = 0
+    for marker in markers.finditer(recommendations):
+        prefix = recommendations[start:marker.start()].rstrip()
+        # 标记紧随单独段落；不让前面其他Section的文字替代当前建议。
+        paragraph = prefix.rsplit("\n\n", 1)[-1]
+        paragraph = re.sub(r"<!--.*?-->", "", paragraph, flags=re.S)
+        section = marker.group(1)
+        valid = (section in paragraph and status in paragraph
+                 and re.search(r"评估[^。\n]*签署", paragraph))
+        if status == "不确定":
+            valid = valid and re.search(r"核实|核验|确认", paragraph) and re.search(r"若|如果|如核实", paragraph)
+        if status == "计划签署":
+            valid = valid and re.search(r"尚未签署|未完成签署|尚未实际签署", paragraph)
+        if valid:
+            covered.add(section)
+        start = marker.end()
+    return [f"{section}缺少签署状态、范围及评估动作的可见建议或有效cop:signature-review标记"
+            for section in sorted(needed - covered)]
+
+
 def validate(
     root: Path,
     matrix: dict,
@@ -354,6 +402,7 @@ def validate(
         except AuditFormatError as exc:
             errors.append(f"COV-14 审计文件不可用：{exc}")
 
+    warnings.extend("COV-22 " + issue for issue in signature_review_issues(matrix, report_text))
     return errors, warnings
 
 

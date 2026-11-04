@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -79,7 +80,7 @@ CATALOG: list[tuple[str, str, str]] = [
     ("E-11", "E", "义务详述节每项含「证据等级」字段（阶段4硬性要求3）"),
     ("E-12", "E", "模式B 小节存在性：欧盟各主体「成文法义务与行为准则义务的衔接」／对比第七节「相同点·不同点·共通要求·单法域特别规定」（㉑）"),
     ("E-13", "E", "加州场景法规逐法独立登记效力状态（正文引用一部，效力核验表即单列一行）"),
-    ("W-27", "W", "CoP签署范围差距提示：签署范围未覆盖适用角色对应Section时，落地建议须含补签评估差距项（启发式；无审计文件时跳过）"),
+    ("W-27", "W", "CoP签署评估：未签署、范围不足及不确定时核验逐Section可见建议；缺矩阵须核实"),
     ("W-28", "W", "交付偏好一致性：报告实际语言/脚注形态与骨架配置注释一致；defaults_applied非空时批注节须含「交付偏好默认采用记录」"),
     ("W-01", "W", "斜体（`*…*`）不用于承载警示（报告格式铁律）"),
     ("W-02", "W", "脚注非概括性（不以「含」「等」起止）"),
@@ -466,6 +467,23 @@ def check_report(path: Path, jurisdictions: set[str], lang: str, mode: str, root
 
     def in_body(i: int) -> bool:
         return (annot_start is None or i < annot_start) and not in_fence[i]
+
+    # W-27与矩阵覆盖校验共用签署建议检查，避免目录有检查项但不执行。
+    if "EU" in jurisdictions:
+        from validate_cop_coverage import signature_review_issues
+        matrix_path = path.parent / ".audit" / (path.stem + ".cop_case_matrix.json")
+        if matrix_path.exists():
+            try:
+                matrix = json.loads(read_text(matrix_path))
+                if not isinstance(matrix, dict):
+                    raise ValueError("矩阵须为对象")
+                issues = signature_review_issues(matrix, text)
+                for issue in issues:
+                    findings.append(Finding("W-27", 0, issue))
+            except (OSError, ValueError, TypeError) as exc:
+                findings.append(Finding("W-27", 0, f"签署建议核验失败：{exc}"))
+        else:
+            findings.append(Finding("W-27", 0, "缺少同名CoP个案矩阵，无法核验签署评估建议"))
 
     # ---- E-01 效力核验记录节 ----
     if structure["validity"] is None:
