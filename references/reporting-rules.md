@@ -2,7 +2,7 @@
 
 > 用途：本文件承载 SKILL.md 阶段4「报告硬性要求」的细则，供三个模板（modeA-report-template / modeB-research-review-template / modeB-comparison-template）共用，避免同一规则在 SKILL.md 与模板间多处复制。主文件只留摘要（SKILL.md §3 阶段4）；与底线 L1–L6 的对应关系在各节标注。
 
-三个Markdown模板规定内容、逻辑顺序和机器可读标记，不规定最终Word视觉版式。用户未指定格式时默认交付DOCX，并读取`references/docx-delivery.md`；呈现层可以重新组织分页、分节、横竖版、表格和视觉层级，但不得改变内容层的法律含义、条件性、来源锚点或义务与建议映射。
+三个Markdown模板规定内容、逻辑顺序和机器可读标记，不规定最终Word视觉版式。用户未指定格式时默认交付DOCX，并读取`references/docx-delivery.md`；最终DOCX可调整标题与正文样式、段落间距、表格视觉样式、分页和页面方向；Word分节仅用于页面布局；长表可拆分或重复表头，主题顺序、Markdown表格与列表结构不变。不得将Markdown字段列表转换成表格或行内字段，不得改变内容层的法律含义、条件性、来源锚点或义务与建议映射。
 
 ## 一、义务表述底线（对应 L2/L3/L4/L6）
 
